@@ -55,3 +55,15 @@ async def root():
         "status": "Online",
         "websockets": "Active"
     }
+# Routers import mein market add karein
+from app.api.v1 import auth, broker, trades, market  # <-- market import kiya
+
+# ... (baaki code same rahega) ...
+
+# ROUTERS ATTACH KAREIN
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
+app.include_router(broker.router, prefix=f"{settings.API_V1_STR}/broker", tags=["Broker Integration"])
+app.include_router(trades.router, prefix=f"{settings.API_V1_STR}/trades", tags=["Trade Execution"])
+app.include_router(market.router, prefix=f"{settings.API_V1_STR}/market", tags=["Market Data"]) # <-- Naya route attach kiya
+
+# ... (Websocket and root route) ...

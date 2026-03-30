@@ -1,0 +1,9 @@
+fastapi[all]
+uvicorn[standard]
+motor
+python-dotenv
+pyjwt
+neo-api-client
+pandas
+websockets
+redis

@@ -5,7 +5,8 @@ from app.core.database import connect_to_mongo, close_mongo_connection
 
 # Routers import karein
 from app.api.v1 import auth
-from app.api.v1 import broker  # <-- Naya Broker route import kiya
+from app.api.v1 import broker 
+from app.api.v1 import trades  # <-- Naya Trades route import kiya
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -31,7 +32,8 @@ async def shutdown_event():
 
 # --- ROUTERS ATTACH KAREIN ---
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
-app.include_router(broker.router, prefix=f"{settings.API_V1_STR}/broker", tags=["Broker Integration"]) # <-- Attach kiya
+app.include_router(broker.router, prefix=f"{settings.API_V1_STR}/broker", tags=["Broker Integration"])
+app.include_router(trades.router, prefix=f"{settings.API_V1_STR}/trades", tags=["Trade Execution"]) # <-- Attach kiya
 
 @app.get("/")
 async def root():

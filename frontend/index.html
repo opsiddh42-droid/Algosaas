@@ -30,27 +30,56 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <div id="login-section" class="flex-1 flex items-center justify-center p-4">
-        <div class="bg-darkCard w-full max-w-md p-8 rounded-2xl shadow-2xl border border-slate-700">
+    <div id="auth-section" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-darkCard w-full max-w-md p-8 rounded-2xl shadow-2xl border border-slate-700 transition-all">
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-primary">⚡ AlgoSaaS</h1>
-                <p class="text-slate-400 mt-2">Login to your trading terminal</p>
+                <p id="auth-subtitle" class="text-slate-400 mt-2">Login to your trading terminal</p>
             </div>
             
             <form id="login-form" onsubmit="handleLogin(event)">
                 <div class="mb-5">
                     <label class="block text-sm text-slate-400 mb-2">Email Address</label>
-                    <input type="email" id="email" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="om@example.com">
+                    <input type="email" id="login-email" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="om@example.com">
                 </div>
                 <div class="mb-6">
                     <label class="block text-sm text-slate-400 mb-2">Password</label>
-                    <input type="password" id="password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="••••••••">
+                    <input type="password" id="login-password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="••••••••">
                 </div>
                 
                 <button type="submit" id="login-btn" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
                     <span>Secure Login</span>
                 </button>
-                <div id="login-error" class="text-danger text-sm text-center mt-3 hidden">Invalid credentials!</div>
+                <div id="login-error" class="text-danger text-sm text-center mt-3 hidden"></div>
+                
+                <div class="text-center mt-6">
+                    <p class="text-sm text-slate-400">Don't have an account? <a href="#" onclick="toggleAuth('signup')" class="text-primary hover:underline font-bold">Sign Up</a></p>
+                </div>
+            </form>
+
+            <form id="signup-form" class="hidden" onsubmit="handleSignup(event)">
+                <div class="mb-4">
+                    <label class="block text-sm text-slate-400 mb-2">Full Name</label>
+                    <input type="text" id="signup-name" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="Omprakash Nath">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm text-slate-400 mb-2">Email Address</label>
+                    <input type="email" id="signup-email" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="om@example.com">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm text-slate-400 mb-2">Password</label>
+                    <input type="password" id="signup-password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="Create a strong password">
+                </div>
+                
+                <button type="submit" id="signup-btn" class="w-full bg-success hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
+                    <span>Create Account</span>
+                </button>
+                <div id="signup-error" class="text-danger text-sm text-center mt-3 hidden"></div>
+                <div id="signup-success" class="text-success text-sm text-center mt-3 hidden">Account created! Please login.</div>
+                
+                <div class="text-center mt-6">
+                    <p class="text-sm text-slate-400">Already have an account? <a href="#" onclick="toggleAuth('login')" class="text-primary hover:underline font-bold">Login</a></p>
+                </div>
             </form>
         </div>
     </div>
@@ -67,7 +96,7 @@
                         <span id="ws-indicator" class="w-2.5 h-2.5 bg-danger rounded-full shadow-[0_0_8px_#ef4444]"></span>
                         <span class="text-xs text-slate-400">Live API</span>
                     </div>
-                    <button onclick="logout()" class="text-xs border border-slate-600 px-3 py-1.5 rounded-md hover:bg-slate-700">Logout</button>
+                    <button onclick="logout()" class="text-xs border border-slate-600 px-3 py-1.5 rounded-md hover:bg-slate-700 transition">Logout</button>
                 </div>
             </div>
         </header>
@@ -84,17 +113,17 @@
                     <span>Kotak Neo</span>
                     <span id="kotak-status" class="text-sm px-2 py-1 bg-danger/20 text-danger rounded font-bold">Inactive</span>
                 </div>
-                <button onclick="alert('Broker connection page coming soon!')" class="w-full mt-3 bg-slate-700 hover:bg-slate-600 py-2 rounded-lg text-sm font-bold">
+                <button onclick="alert('Broker connection page coming soon!')" class="w-full mt-3 bg-slate-700 hover:bg-slate-600 py-3 rounded-lg text-sm font-bold transition">
                     Connect Kotak Neo
                 </button>
             </div>
             
             <div class="grid grid-cols-2 gap-3 mb-5">
-                <button class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
+                <button onclick="window.location.href='optionchain.html'" class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
                     <div class="text-2xl mb-1">⛓️</div>
                     <div class="text-sm font-bold">Option Chain</div>
                 </button>
-                <button class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
+                <button onclick="window.location.href='strategy.html'" class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
                     <div class="text-2xl mb-1">🤖</div>
                     <div class="text-sm font-bold">Strategies</div>
                 </button>
@@ -107,13 +136,13 @@
     </div>
 
     <script>
-        // Backend URL (Local testing ke liye 8000, Render/AWS pe baad mein change karenge)
-        const API_BASE_URL = "http://127.0.0.1:8000/api/v1"; 
-        const WS_BASE_URL = "ws://127.0.0.1:8000/ws/live-data";
+        // ✅ Live Render URLs Updated Here
+        const API_BASE_URL = "https://algosaas.onrender.com/api/v1"; 
+        const WS_BASE_URL = "wss://algosaas.onrender.com/ws/live-data";
         
         let wsConnection = null;
 
-        // Page load hote hi check karein ki user pehle se logged in hai ya nahi
+        // Auto-login check on page load
         window.onload = () => {
             const token = localStorage.getItem('saas_token');
             if(token) {
@@ -121,21 +150,80 @@
             }
         };
 
-        // 1. Handle Login Function
+        // UI Toggle (Login <-> Signup)
+        function toggleAuth(mode) {
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+            const subtitle = document.getElementById('auth-subtitle');
+            
+            if(mode === 'signup') {
+                loginForm.classList.add('hidden');
+                signupForm.classList.remove('hidden');
+                subtitle.innerText = "Create your free account";
+            } else {
+                signupForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+                subtitle.innerText = "Login to your trading terminal";
+            }
+        }
+
+        // 1. Handle Signup
+        async function handleSignup(e) {
+            e.preventDefault();
+            const btn = document.getElementById('signup-btn');
+            const errorMsg = document.getElementById('signup-error');
+            const successMsg = document.getElementById('signup-success');
+            
+            const name = document.getElementById('signup-name').value;
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+
+            btn.innerHTML = '<span class="loader"></span> Creating...';
+            btn.disabled = true;
+            errorMsg.classList.add('hidden');
+            successMsg.classList.add('hidden');
+
+            try {
+                // Assuming standard auth signup endpoint. Adjust if you named it differently in auth.py
+                const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, email: email, password: password })
+                });
+
+                const data = await response.json();
+
+                if(response.ok) {
+                    successMsg.classList.remove('hidden');
+                    document.getElementById('signup-form').reset();
+                    // Optional: Switch to login after 2 seconds
+                    setTimeout(() => toggleAuth('login'), 2000);
+                } else {
+                    errorMsg.innerText = data.detail || "Signup failed!";
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorMsg.innerText = "Server is sleeping or offline. Please wait 1 minute and try again.";
+                errorMsg.classList.remove('hidden');
+            } finally {
+                btn.innerHTML = '<span>Create Account</span>';
+                btn.disabled = false;
+            }
+        }
+
+        // 2. Handle Login
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
             const errorMsg = document.getElementById('login-error');
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
 
-            // UI changes during API call
             btn.innerHTML = '<span class="loader"></span> Authenticating...';
             btn.disabled = true;
             errorMsg.classList.add('hidden');
 
             try {
-                // FastAPI backend par POST request
                 const response = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -145,18 +233,17 @@
                 const data = await response.json();
 
                 if(response.ok) {
-                    // Token aur user details save karna
                     localStorage.setItem('saas_token', data.access_token);
-                    localStorage.setItem('saas_user', data.user_name);
-                    localStorage.setItem('saas_kotak', data.kotak_status);
+                    localStorage.setItem('saas_user', data.user_name || "Trader");
+                    localStorage.setItem('saas_kotak', data.kotak_status || "Inactive");
                     
-                    showDashboard(data.user_name, data.kotak_status);
+                    showDashboard(data.user_name || "Trader", data.kotak_status || "Inactive");
                 } else {
                     errorMsg.innerText = data.detail || "Login failed!";
                     errorMsg.classList.remove('hidden');
                 }
             } catch (err) {
-                errorMsg.innerText = "Server is offline. Start FastAPI backend first.";
+                errorMsg.innerText = "Server is waking up. Please wait a few seconds and try again.";
                 errorMsg.classList.remove('hidden');
             } finally {
                 btn.innerHTML = '<span>Secure Login</span>';
@@ -164,9 +251,9 @@
             }
         }
 
-        // 2. Switch to Dashboard UI
+        // 3. Switch to Dashboard UI
         function showDashboard(userName, kotakStatus) {
-            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('dashboard-section').classList.remove('hidden');
             
             document.getElementById('welcome-msg').innerText = `Welcome, ${userName}`;
@@ -177,22 +264,20 @@
                 kStatusEl.className = 'text-sm px-2 py-1 bg-success/20 text-success rounded font-bold';
             }
 
-            // Connect WebSocket for Live Data
             connectWebSocket();
         }
 
-        // 3. Logout Function
+        // 4. Logout Function
         function logout() {
             localStorage.clear();
             if(wsConnection) wsConnection.close();
-            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('auth-section').classList.remove('hidden');
             document.getElementById('dashboard-section').classList.add('hidden');
+            toggleAuth('login'); // Ensure it resets to login screen
         }
 
-        // 4. Connect to FastAPI WebSocket
+        // 5. Connect to FastAPI WebSocket
         function connectWebSocket() {
-            // Hum decode kiye hue token se ya username se connect kar sakte hain. 
-            // Abhi testing ke liye generic user_id bhej rahe hain
             wsConnection = new WebSocket(`${WS_BASE_URL}/test_user`);
             
             wsConnection.onopen = () => {
@@ -203,7 +288,6 @@
 
             wsConnection.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                // Agar backend se pnl update aaye:
                 if(data.pnl !== undefined) {
                     const pnlEl = document.getElementById('live-pnl');
                     pnlEl.innerText = `${data.pnl >= 0 ? '+' : ''} ₹${data.pnl.toFixed(2)}`;
@@ -215,11 +299,10 @@
                 const indicator = document.getElementById('ws-indicator');
                 indicator.classList.remove('bg-success', 'shadow-[0_0_8px_#10b981]');
                 indicator.classList.add('bg-danger', 'shadow-[0_0_8px_#ef4444]');
-                // Reconnect logic can be added here
             };
         }
 
-        // 5. Trigger Safe Exit
+        // 6. Trigger Safe Exit
         async function triggerExitAll() {
             if(confirm("🚨 WARNING: This will immediately square off ALL positions (Buys first, then Sells). Proceed?")) {
                 const token = localStorage.getItem('saas_token');

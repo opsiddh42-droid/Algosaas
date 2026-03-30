@@ -9,3 +9,4 @@ websockets
 redis
 passlib[bcrypt]
 apscheduler
+gunicorn

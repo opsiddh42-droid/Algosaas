@@ -10,4 +10,4 @@ pandas
 wsproto
 apscheduler
 pytz
-email-validator
+pydantic[email]

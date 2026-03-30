@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
 
-# Yahan naya auth router import karein
+# Routers import karein
 from app.api.v1 import auth
+from app.api.v1 import broker  # <-- Naya Broker route import kiya
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -28,8 +29,9 @@ async def startup_event():
 async def shutdown_event():
     await close_mongo_connection()
 
-# --- YAHAN ROUTER ATTACH KAREIN ---
+# --- ROUTERS ATTACH KAREIN ---
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
+app.include_router(broker.router, prefix=f"{settings.API_V1_STR}/broker", tags=["Broker Integration"]) # <-- Attach kiya
 
 @app.get("/")
 async def root():

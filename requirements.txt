@@ -7,6 +7,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 git+https://github.com/Kotak-Neo/kotak-neo-api.git#egg=neo_api_client
 pandas
-websockets==13.1
+wsproto
 apscheduler
 pytz

@@ -7,8 +7,8 @@ logger = logging.getLogger(__name__)
 
 # Indices ki core configuration
 INDICES_CONFIG = {
-    "NIFTY": {"exchange": "nse_fo", "lot_size": 25, "strike_gap": 50},
-    "BANKNIFTY": {"exchange": "nse_fo", "lot_size": 15, "strike_gap": 100},
+    "NIFTY": {"exchange": "nse_fo", "lot_size": 65, "strike_gap": 50},
+    "BANKNIFTY": {"exchange": "nse_fo", "lot_size": 20, "strike_gap": 100},
     "SENSEX": {"exchange": "bse_fo", "lot_size": 10, "strike_gap": 100}
 }
 

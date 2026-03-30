@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AlgoSaaS Pro | Trading Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBase: '#0f172a',
+                        darkCard: '#1e293b',
+                        primary: '#3b82f6',
+                        success: '#10b981',
+                        danger: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .hidden { display: none !important; }
+        /* Loader Animation */
+        .loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div id="login-section" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-darkCard w-full max-w-md p-8 rounded-2xl shadow-2xl border border-slate-700">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-primary">⚡ AlgoSaaS</h1>
+                <p class="text-slate-400 mt-2">Login to your trading terminal</p>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="mb-5">
+                    <label class="block text-sm text-slate-400 mb-2">Email Address</label>
+                    <input type="email" id="email" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="om@example.com">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm text-slate-400 mb-2">Password</label>
+                    <input type="password" id="password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="••••••••">
+                </div>
+                
+                <button type="submit" id="login-btn" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
+                    <span>Secure Login</span>
+                </button>
+                <div id="login-error" class="text-danger text-sm text-center mt-3 hidden">Invalid credentials!</div>
+            </form>
+        </div>
+    </div>
+
+    <div id="dashboard-section" class="hidden flex-1 flex flex-col">
+        <header class="bg-darkCard border-b border-slate-700 p-4 sticky top-0 z-50">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-bold text-primary">⚡ AlgoSaaS</h2>
+                    <p class="text-xs text-slate-400" id="welcome-msg">Welcome, User</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span id="ws-indicator" class="w-2.5 h-2.5 bg-danger rounded-full shadow-[0_0_8px_#ef4444]"></span>
+                        <span class="text-xs text-slate-400">Live API</span>
+                    </div>
+                    <button onclick="logout()" class="text-xs border border-slate-600 px-3 py-1.5 rounded-md hover:bg-slate-700">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="p-4 flex-1">
+            <div class="bg-darkCard border border-slate-700 rounded-xl p-5 mb-5 text-center shadow-lg">
+                <h3 class="text-slate-400 text-sm font-semibold tracking-wider uppercase">Total P&L (MTM)</h3>
+                <div id="live-pnl" class="text-4xl font-bold mt-2 text-success">+ ₹0.00</div>
+            </div>
+
+            <div id="broker-box" class="bg-darkCard border border-slate-700 rounded-xl p-5 mb-5">
+                <h3 class="font-bold text-lg mb-2">🏦 Broker Status</h3>
+                <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg">
+                    <span>Kotak Neo</span>
+                    <span id="kotak-status" class="text-sm px-2 py-1 bg-danger/20 text-danger rounded font-bold">Inactive</span>
+                </div>
+                <button onclick="alert('Broker connection page coming soon!')" class="w-full mt-3 bg-slate-700 hover:bg-slate-600 py-2 rounded-lg text-sm font-bold">
+                    Connect Kotak Neo
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 mb-5">
+                <button class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
+                    <div class="text-2xl mb-1">⛓️</div>
+                    <div class="text-sm font-bold">Option Chain</div>
+                </button>
+                <button class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
+                    <div class="text-2xl mb-1">🤖</div>
+                    <div class="text-sm font-bold">Strategies</div>
+                </button>
+            </div>
+
+            <button onclick="triggerExitAll()" class="w-full bg-gradient-to-r from-red-600 to-red-800 text-white font-black text-lg py-4 rounded-xl shadow-[0_4px_15px_rgba(220,38,38,0.4)] mt-auto active:scale-95 transition-transform uppercase tracking-wider border border-red-500">
+                🚨 Panic Exit All
+            </button>
+        </main>
+    </div>
+
+    <script>
+        // Backend URL (Local testing ke liye 8000, Render/AWS pe baad mein change karenge)
+        const API_BASE_URL = "http://127.0.0.1:8000/api/v1"; 
+        const WS_BASE_URL = "ws://127.0.0.1:8000/ws/live-data";
+        
+        let wsConnection = null;
+
+        // Page load hote hi check karein ki user pehle se logged in hai ya nahi
+        window.onload = () => {
+            const token = localStorage.getItem('saas_token');
+            if(token) {
+                showDashboard(localStorage.getItem('saas_user'), localStorage.getItem('saas_kotak'));
+            }
+        };
+
+        // 1. Handle Login Function
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const errorMsg = document.getElementById('login-error');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            // UI changes during API call
+            btn.innerHTML = '<span class="loader"></span> Authenticating...';
+            btn.disabled = true;
+            errorMsg.classList.add('hidden');
+
+            try {
+                // FastAPI backend par POST request
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, password: password })
+                });
+
+                const data = await response.json();
+
+                if(response.ok) {
+                    // Token aur user details save karna
+                    localStorage.setItem('saas_token', data.access_token);
+                    localStorage.setItem('saas_user', data.user_name);
+                    localStorage.setItem('saas_kotak', data.kotak_status);
+                    
+                    showDashboard(data.user_name, data.kotak_status);
+                } else {
+                    errorMsg.innerText = data.detail || "Login failed!";
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorMsg.innerText = "Server is offline. Start FastAPI backend first.";
+                errorMsg.classList.remove('hidden');
+            } finally {
+                btn.innerHTML = '<span>Secure Login</span>';
+                btn.disabled = false;
+            }
+        }
+
+        // 2. Switch to Dashboard UI
+        function showDashboard(userName, kotakStatus) {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            
+            document.getElementById('welcome-msg').innerText = `Welcome, ${userName}`;
+            
+            const kStatusEl = document.getElementById('kotak-status');
+            if(kotakStatus === 'Active') {
+                kStatusEl.innerText = 'Active';
+                kStatusEl.className = 'text-sm px-2 py-1 bg-success/20 text-success rounded font-bold';
+            }
+
+            // Connect WebSocket for Live Data
+            connectWebSocket();
+        }
+
+        // 3. Logout Function
+        function logout() {
+            localStorage.clear();
+            if(wsConnection) wsConnection.close();
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('dashboard-section').classList.add('hidden');
+        }
+
+        // 4. Connect to FastAPI WebSocket
+        function connectWebSocket() {
+            // Hum decode kiye hue token se ya username se connect kar sakte hain. 
+            // Abhi testing ke liye generic user_id bhej rahe hain
+            wsConnection = new WebSocket(`${WS_BASE_URL}/test_user`);
+            
+            wsConnection.onopen = () => {
+                const indicator = document.getElementById('ws-indicator');
+                indicator.classList.remove('bg-danger', 'shadow-[0_0_8px_#ef4444]');
+                indicator.classList.add('bg-success', 'shadow-[0_0_8px_#10b981]');
+            };
+
+            wsConnection.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                // Agar backend se pnl update aaye:
+                if(data.pnl !== undefined) {
+                    const pnlEl = document.getElementById('live-pnl');
+                    pnlEl.innerText = `${data.pnl >= 0 ? '+' : ''} ₹${data.pnl.toFixed(2)}`;
+                    pnlEl.className = `text-4xl font-bold mt-2 ${data.pnl >= 0 ? 'text-success' : 'text-danger'}`;
+                }
+            };
+
+            wsConnection.onclose = () => {
+                const indicator = document.getElementById('ws-indicator');
+                indicator.classList.remove('bg-success', 'shadow-[0_0_8px_#10b981]');
+                indicator.classList.add('bg-danger', 'shadow-[0_0_8px_#ef4444]');
+                // Reconnect logic can be added here
+            };
+        }
+
+        // 5. Trigger Safe Exit
+        async function triggerExitAll() {
+            if(confirm("🚨 WARNING: This will immediately square off ALL positions (Buys first, then Sells). Proceed?")) {
+                const token = localStorage.getItem('saas_token');
+                try {
+                    const response = await fetch(`${API_BASE_URL}/trades/exit-all`, {
+                        method: 'POST',
+                        headers: { 
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const data = await response.json();
+                    alert(data.message || "Command sent to execution engine.");
+                } catch(err) {
+                    alert("Failed to send exit command to server.");
+                }
+            }
+        }
+    </script>
+</body>
+</html>

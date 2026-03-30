@@ -7,3 +7,4 @@ neo-api-client
 pandas
 websockets
 redis
+passlib[bcrypt]

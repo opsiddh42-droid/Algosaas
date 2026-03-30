@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Option Chain | AlgoSaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .strike-box { background-color: #1e293b; color: #e2e8f0; font-weight: 900; }
+        .ce-box { background-color: rgba(16, 185, 129, 0.1); border-right: 2px solid #1e293b; }
+        .pe-box { background-color: rgba(239, 68, 68, 0.1); border-left: 2px solid #1e293b; }
+        .loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="p-4 flex flex-col min-h-screen">
+
+    <div class="max-w-md mx-auto w-full flex-1 flex flex-col">
+        <header class="flex justify-between items-center mb-5">
+            <h1 class="text-2xl font-bold text-blue-500">⛓️ Option Chain</h1>
+            <a href="index.html" class="text-sm border border-slate-600 px-3 py-1 rounded hover:bg-slate-800 transition">← Back</a>
+        </header>
+
+        <div class="bg-slate-800 p-4 rounded-xl mb-4 border border-slate-700 shadow-lg">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Select Index</label>
+                    <select id="index-select" class="w-full bg-slate-900 border border-slate-600 p-2.5 rounded-lg text-sm text-white outline-none focus:border-blue-500">
+                        <option value="NIFTY">NIFTY</option>
+                        <option value="SENSEX">SENSEX</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Spot Price (LTP)</label>
+                    <input type="number" id="spot-ltp" value="22500" class="w-full bg-slate-900 border border-slate-600 p-2.5 rounded-lg text-sm text-white outline-none focus:border-blue-500">
+                </div>
+            </div>
+            <button onclick="fetchOptionChain()" id="load-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
+                <span>Load Option Chain</span>
+            </button>
+        </div>
+
+        <div class="flex text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">
+            <div class="flex-1 text-center text-green-400">Calls (CE)</div>
+            <div class="w-20 text-center">Strike</div>
+            <div class="flex-1 text-center text-red-400">Puts (PE)</div>
+        </div>
+
+        <div id="chain-container" class="flex-1 overflow-y-auto space-y-1 pb-10">
+            <div class="text-center text-slate-500 mt-10 text-sm">Enter LTP and click Load to fetch strikes...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
+
+        async function fetchOptionChain() {
+            const btn = document.getElementById('load-btn');
+            const container = document.getElementById('chain-container');
+            const indexName = document.getElementById('index-select').value;
+            const currentLtp = document.getElementById('spot-ltp').value;
+            const token = localStorage.getItem('saas_token');
+
+            if(!currentLtp) return alert("Please enter a Spot Price!");
+
+            btn.innerHTML = '<span class="loader"></span> Loading...';
+            btn.disabled = true;
+
+            try {
+                // Backend API call jo MongoDB se fast fetch karega
+                const response = await fetch(`${API_BASE_URL}/market/option-chain/${indexName}?current_ltp=${currentLtp}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    renderChain(data.chain);
+                } else {
+                    container.innerHTML = `<div class="text-red-500 text-center mt-5">${data.detail}</div>`;
+                }
+            } catch (err) {
+                container.innerHTML = `<div class="text-red-500 text-center mt-5">Server connection failed! Ensure backend is running.</div>`;
+            } finally {
+                btn.innerHTML = '<span>Load Option Chain</span>';
+                btn.disabled = false;
+            }
+        }
+
+        function renderChain(chainData) {
+            const container = document.getElementById('chain-container');
+            container.innerHTML = ''; // Clear purana data
+
+            // Data format: [{strike: 22500, type: "CE", trade_symbol: "...", token: "..."}, ...]
+            // Humein isko Strike ke hisaab se group karna hai
+            const strikesMap = {};
+            
+            chainData.forEach(item => {
+                if(!strikesMap[item.strike]) {
+                    strikesMap[item.strike] = { CE: null, PE: null };
+                }
+                strikesMap[item.strike][item.type] = item;
+            });
+
+            // HTML Generate karna
+            Object.keys(strikesMap).forEach(strike => {
+                const ceData = strikesMap[strike].CE;
+                const peData = strikesMap[strike].PE;
+
+                const ceSymbol = ceData ? ceData.trade_symbol.replace(/NIFTY|SENSEX|\d{2}[A-Z]{3}/, '') : '-';
+                const peSymbol = peData ? peData.trade_symbol.replace(/NIFTY|SENSEX|\d{2}[A-Z]{3}/, '') : '-';
+
+                const rowHtml = `
+                    <div class="flex border border-slate-700 rounded-lg overflow-hidden shadow hover:border-blue-500 transition-colors cursor-pointer" onclick="openTradeModal(${strike})">
+                        <div class="flex-1 ce-box p-3 flex flex-col items-center justify-center">
+                            <span class="text-xs text-slate-400">${ceSymbol}</span>
+                            <span class="font-bold text-green-400 mt-1">₹ --</span> </div>
+                        
+                        <div class="w-24 strike-box p-3 flex items-center justify-center text-sm">
+                            ${strike}
+                        </div>
+                        
+                        <div class="flex-1 pe-box p-3 flex flex-col items-center justify-center">
+                            <span class="text-xs text-slate-400">${peSymbol}</span>
+                            <span class="font-bold text-red-400 mt-1">₹ --</span> </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', rowHtml);
+            });
+        }
+
+        function openTradeModal(strike) {
+            // Yahan aage chalkar Buy/Sell ka popup aayega
+            alert(`Trade panel for Strike ${strike} will open here!`);
+        }
+    </script>
+</body>
+</html>

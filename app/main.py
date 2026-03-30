@@ -1,12 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
 
-# Routers import karein
-from app.api.v1 import auth
-from app.api.v1 import broker 
-from app.api.v1 import trades  # <-- Naya Trades route import kiya
+# Routers
+from app.api.v1 import auth, broker, trades
+from app.websockets.stream import manager  # <-- WebSocket manager import kiya
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -33,12 +32,26 @@ async def shutdown_event():
 # --- ROUTERS ATTACH KAREIN ---
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
 app.include_router(broker.router, prefix=f"{settings.API_V1_STR}/broker", tags=["Broker Integration"])
-app.include_router(trades.router, prefix=f"{settings.API_V1_STR}/trades", tags=["Trade Execution"]) # <-- Attach kiya
+app.include_router(trades.router, prefix=f"{settings.API_V1_STR}/trades", tags=["Trade Execution"])
+
+# --- WEBSOCKET ROUTE ---
+@app.websocket("/ws/live-data/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await manager.connect(websocket, user_id)
+    try:
+        while True:
+            # Frontend se agar koi ping/pong message aaye usko handle karne ke liye
+            data = await websocket.receive_text()
+            # Abhi ke liye hum sirf connection zinda rakh rahe hain
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
 
 @app.get("/")
 async def root():
     return {
         "platform": settings.PROJECT_NAME, 
         "status": "Online",
-        "database": "Connected"
+        "websockets": "Active"
     }

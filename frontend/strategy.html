@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Builder | AlgoSaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-md mx-auto">
+        <header class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-blue-500">Create Strategy</h1>
+            <a href="index.html" class="text-sm text-slate-400">← Back</a>
+        </header>
+
+        <div class="bg-slate-800 p-4 rounded-xl mb-4 border border-slate-700">
+            <label class="block text-xs text-slate-400 mb-1">Strategy Name</label>
+            <input type="text" id="strat-name" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg mb-4" placeholder="Ex: 9:20 Short Straddle">
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Index</label>
+                    <select id="strat-index" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg">
+                        <option value="NIFTY">NIFTY</option>
+                        <option value="SENSEX">SENSEX</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Entry Time</label>
+                    <input type="time" id="strat-time" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg" value="09:20">
+                </div>
+            </div>
+        </div>
+
+        <h2 class="text-lg font-bold mb-3">Strategy Legs</h2>
+        <div id="legs-container" class="space-y-3 mb-6">
+            </div>
+
+        <button onclick="addLeg()" class="w-full border-2 border-dashed border-slate-700 p-3 rounded-xl text-slate-400 font-bold mb-6 hover:border-blue-500 hover:text-blue-500 transition-colors">
+            + Add New Leg
+        </button>
+
+        <button onclick="saveStrategy()" class="w-full bg-blue-600 p-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-900/20 active:scale-95 transition-transform">
+            🚀 Save & Deploy Strategy
+        </button>
+    </div>
+
+    <script>
+        let legs = [];
+
+        function addLeg() {
+            const legId = Date.now();
+            const legHtml = `
+                <div id="leg-${legId}" class="bg-slate-800 p-4 rounded-xl border border-slate-700 relative">
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <select class="leg-type bg-slate-900 p-2 rounded border border-slate-700 text-sm">
+                            <option value="CE">CALL (CE)</option>
+                            <option value="PE">PUT (PE)</option>
+                        </select>
+                        <select class="leg-side bg-slate-900 p-2 rounded border border-slate-700 text-sm">
+                            <option value="SELL">SELL</option>
+                            <option value="BUY">BUY</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" class="leg-offset bg-slate-900 p-2 rounded border border-slate-700 text-sm" placeholder="Strike Offset (Ex: 0)">
+                        <input type="number" class="leg-lots bg-slate-900 p-2 rounded border border-slate-700 text-sm" placeholder="Lots">
+                    </div>
+                    <button onclick="removeLeg(${legId})" class="absolute -top-2 -right-2 bg-red-600 w-6 h-6 rounded-full text-xs">✕</button>
+                </div>
+            `;
+            document.getElementById('legs-container').insertAdjacentHTML('beforeend', legHtml);
+        }
+
+        function removeLeg(id) {
+            document.getElementById(`leg-${id}`).remove();
+        }
+
+        async function saveStrategy() {
+            // Data collection logic
+            const name = document.getElementById('strat-name').value;
+            if(!name) { alert("Please enter strategy name"); return; }
+            
+            const legElements = document.querySelectorAll('#legs-container > div');
+            const strategyLegs = [];
+            
+            legElements.forEach(el => {
+                strategyLegs.push({
+                    option_type: el.querySelector('.leg-type').value,
+                    side: el.querySelector('.leg-side').value,
+                    strike_offset: parseInt(el.querySelector('.leg-offset').value) || 0,
+                    lots: parseInt(el.querySelector('.leg-lots').value) || 1
+                });
+            });
+
+            const strategyData = {
+                strategy_name: name,
+                index: document.getElementById('strat-index').value,
+                entry_time: document.getElementById('strat-time').value,
+                exit_time: "15:15",
+                legs: strategyLegs,
+                is_active: true
+            };
+
+            const token = localStorage.getItem('saas_token');
+            const response = await fetch('http://127.0.0.1:8000/api/v1/strategy/save', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(strategyData)
+            });
+
+            if(response.ok) {
+                alert("Strategy saved successfully!");
+                window.location.href = 'index.html';
+            } else {
+                alert("Error saving strategy");
+            }
+        }
+    </script>
+</body>
+</html>

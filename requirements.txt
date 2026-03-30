@@ -8,3 +8,4 @@ pandas
 websockets
 redis
 passlib[bcrypt]
+apscheduler

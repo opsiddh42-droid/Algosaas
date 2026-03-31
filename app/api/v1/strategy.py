@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import uuid
 
@@ -9,7 +9,23 @@ from app.core.database import get_collection
 
 router = APIRouter()
 
-# --- 1. PYDANTIC MODELS (Frontend se aane wale data ka structure) ---
+# --- 1. PYDANTIC MODELS (Updated for Pro Features & Paper Trade) ---
+
+# Chote models jo baki jagah use honge (SL, Target ke liye)
+class ConditionModel(BaseModel):
+    enabled: bool
+    type: Optional[str] = None
+    value: Optional[str] = None
+
+class SpotTriggerModel(BaseModel):
+    enabled: bool
+    direction: Optional[str] = None
+    points: Optional[str] = None
+
+class OverallSLModel(BaseModel):
+    enabled: bool
+    value: Optional[str] = None
+
 class LegModel(BaseModel):
     id: int
     segment: str
@@ -18,15 +34,22 @@ class LegModel(BaseModel):
     optType: str
     expiry: str
     criteria: str
-    strikeType: str
+    targetValue: str        # Pehle yeh sirf strikeType tha
+    target: ConditionModel  # Har leg ka apna target
+    sl: ConditionModel      # Har leg ka apna SL
 
 class StrategyModel(BaseModel):
+    executionMode: str = "PAPER"  # 🟢 NAYA: Paper ya Real mode record karega
     index: str
     underlying: str
-    type: str
+    type: str               # Intraday, BTST, Positional
     entryTime: str
     exitTime: str
+    exitDate: Optional[str] = None 
+    spotTrigger: SpotTriggerModel
+    overallSL: OverallSLModel
     legs: List[LegModel]
+
 
 # ==========================================
 # ROUTE 1: SAVE NEW STRATEGY
@@ -36,19 +59,23 @@ async def save_strategy(strategy: StrategyModel, current_user: dict = Depends(ge
     try:
         strat_col = get_collection("strategies")
         
-        # Strategy ke liye ek unique ID aur status generate karo
+        # Strategy ke liye ek unique ID aur default status generate karo
         strategy_data = strategy.dict()
         strategy_data["strategy_id"] = str(uuid.uuid4())
         strategy_data["user_id"] = current_user["id"]
-        strategy_data["is_active"] = True  # Default chalu rahegi
+        strategy_data["is_active"] = True  
+        strategy_data["status"] = "WAITING" # 🟢 Engine ko batane ke liye ki abhi entry nahi hui
         strategy_data["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Database mein save kar do
         await strat_col.insert_one(strategy_data)
 
+        # Dynamic Message (Paper ya Real)
+        mode_text = strategy_data.get("executionMode", "PAPER")
+
         return {
             "status": "success", 
-            "message": "✅ Strategy Saved Successfully!", 
+            "message": f"✅ {mode_text} Strategy Saved Successfully!", 
             "strategy_id": strategy_data["strategy_id"]
         }
     except Exception as e:

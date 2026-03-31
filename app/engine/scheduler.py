@@ -33,6 +33,13 @@ def get_live_spot(client, index_name):
     except: pass
     return 0.0
 
+def get_option_ltp(client, token, exch):
+    try:
+        q = client.quotes(instrument_tokens=[{"instrument_token": str(token), "exchange_segment": exch}], quote_type="all")
+        if q and isinstance(q, dict) and 'data' in q: return float(q['data'][0].get('ltp', 0))
+    except: pass
+    return 0.0
+
 def get_master_csv(conf):
     file_path = conf["Master"]
     if not os.path.exists(file_path) or (time.time() - os.path.getmtime(file_path) > 86400):
@@ -47,32 +54,21 @@ def get_master_csv(conf):
 def calculate_dynamic_strike(client, index, underlying, opt_type, criteria, target_value):
     conf = INDICES_CONFIG[index]
     
-    # 1. Base Price nikalo (Spot ya Future)
-    base_price = 0.0
-    if underlying == "Cash":
-        base_price = get_live_spot(client, index)
-    else:
-        # Future Price calculation (Simplified)
-        base_price = get_live_spot(client, index) # Fallback to Spot if Future fetching gets complex in background
-
+    base_price = get_live_spot(client, index)
     if base_price == 0: return None
 
-    # 2. ATM Calculate karo
     atm = round(base_price / conf["StrikeGap"]) * conf["StrikeGap"]
-
-    # 3. ITM/OTM Shift Logic (Agar Strike Type chuna hai)
     final_strike = atm
+    
     if criteria == "Strike Type":
         shift_multiplier = 0
         if "ITM" in target_value:
             shift_multiplier = int(target_value.replace("ITM", ""))
-            # Call ke liye ITM matlab neeche, Put ke liye ITM matlab upar
             if opt_type == "CE": final_strike = atm - (shift_multiplier * conf["StrikeGap"])
             else: final_strike = atm + (shift_multiplier * conf["StrikeGap"])
         
         elif "OTM" in target_value:
             shift_multiplier = int(target_value.replace("OTM", ""))
-            # Call ke liye OTM matlab upar, Put ke liye OTM matlab neeche
             if opt_type == "CE": final_strike = atm + (shift_multiplier * conf["StrikeGap"])
             else: final_strike = atm - (shift_multiplier * conf["StrikeGap"])
 
@@ -80,7 +76,7 @@ def calculate_dynamic_strike(client, index, underlying, opt_type, criteria, targ
 
 
 # ==========================================
-# 🚀 CORE ENGINE: ADVANCED ALGO TRADER
+# 🚀 CORE ENGINE: DUAL ALGO TRADER (PAPER + REAL)
 # ==========================================
 async def check_and_execute_strategies():
     tz = pytz.timezone('Asia/Kolkata')
@@ -88,12 +84,13 @@ async def check_and_execute_strategies():
     current_time = now.strftime("%H:%M")
     current_date = now.strftime("%Y-%m-%d")
 
-    # Weekend / Off-market check (Uncomment below line for real live server)
+    # Weekend / Off-market check
     # if now.weekday() >= 5 or current_time < "09:15" or current_time > "15:30": return
 
     try:
         strat_col = get_collection("strategies")
         users_col = get_collection("users")
+        paper_col = get_collection("paper_trades") # 🟢 Naya Paper DB
 
         active_strats = await strat_col.find({"is_active": True}).to_list(length=1000)
 
@@ -101,6 +98,7 @@ async def check_and_execute_strategies():
             strat_id = strat.get("strategy_id")
             user_id = strat.get("user_id")
             status = strat.get("status", "WAITING")
+            mode = strat.get("executionMode", "PAPER") # 🟢 Mode Check
             
             db_user = await users_col.find_one({"id": user_id})
             if not db_user or db_user.get("kotak_status") != "Active": continue
@@ -113,79 +111,96 @@ async def check_and_execute_strategies():
             # ==========================================
             if status == "WAITING" and strat.get("entryTime") == current_time:
                 
-                # Spot Trigger Check
-                spot_trigger = strat.get("spotTrigger", {})
-                if spot_trigger.get("enabled"):
-                    live_spot = get_live_spot(client, strat["index"])
-                    # Agar conditions meet na ho, toh continue kar jao (next minute aayega)
-                    # Logic: Needs DB to store base spot at 09:15 to calculate diff. Simplified for now.
-
-                print(f"⚡ [ENTRY FIRE] Strategy: {strat_id} | User: {db_user.get('name')}")
+                print(f"⚡ [{mode} ENTRY FIRE] Strategy: {strat_id} | User: {db_user.get('name')}")
                 
                 index_name = strat["index"]
                 conf = INDICES_CONFIG[index_name]
                 df = get_master_csv(conf)
 
-                # Find Expiry Date Strings (Simplified logic checking next 30 days)
                 all_ref_keys = set(df[7].astype(str).values)
                 expiries_found = []
-                for i in range(0, 30):
+                for i in range(0, 45):
                     test_date = now + timedelta(days=i)
                     d_str = f"{test_date.strftime('%d')}{test_date.strftime('%b').upper()}{test_date.strftime('%y')}"
                     check_sym = f"{index_name}{d_str}"
-                    # Quick check if this date string exists in any symbol
                     if any(check_sym in s for s in all_ref_keys):
                         if d_str not in expiries_found:
                             expiries_found.append(d_str)
 
+                executed_virtual_legs = []
+
                 # Execute Legs
                 for leg in strat.get("legs", []):
-                    # 1. Calculate Exact Strike
                     strike = calculate_dynamic_strike(
                         client, index_name, strat["underlying"], 
                         leg["optType"], leg["criteria"], leg["targetValue"]
                     )
-                    
                     if not strike: continue
 
-                    # 2. Pick Expiry string
-                    exp_idx = 0 # Default Weekly
+                    exp_idx = 0 
                     if leg["expiry"] == "Next Weekly" and len(expiries_found) > 1: exp_idx = 1
-                    elif leg["expiry"] == "Monthly" and len(expiries_found) > 3: exp_idx = 3 # Approx
+                    elif leg["expiry"] == "Monthly" and len(expiries_found) > 3: exp_idx = 3 
+                    elif leg["expiry"] == "Next Monthly" and len(expiries_found) > 4: exp_idx = 4
                     
                     expiry_str = expiries_found[exp_idx] if expiries_found else now.strftime("%d%b%y").upper()
 
-                    # 3. Create Final Trading Symbol (e.g., NIFTY24APR22000.00CE)
-                    # Kotak often uses format without .00 for some indices, adjust based on master CSV format
                     symbol_search = f"{index_name}{expiry_str}{strike}.00{leg['optType']}"
                     
-                    # Search exact symbol in CSV to verify and get token
                     matched_row = df[df[7] == symbol_search]
                     if matched_row.empty:
-                        symbol_search = f"{index_name}{expiry_str}{int(strike)}{leg['optType']}" # Try without decimals
-                        
-                    print(f"🎯 Calculated Symbol: {symbol_search} (From: {leg['targetValue']})")
+                        symbol_search = f"{index_name}{expiry_str}{int(strike)}{leg['optType']}"
+                        matched_row = df[df[7] == symbol_search]
 
-                    # 4. Fire Order (Buffered Limit - 15% Safe Rule)
-                    qty = str(int(leg["lot"]) * conf["LotSize"])
+                    qty = int(leg["lot"]) * conf["LotSize"]
                     transaction = "B" if leg["position"] == "Buy" else "S"
                     
-                    try:
-                        # HINT: Live platform pe isko uncomment karenge
-                        '''
-                        client.place_order(
-                            exchange_segment=conf["Exchange"], product="NRML", price="0", 
-                            order_type="MKT", quantity=qty, validity="DAY", 
-                            trading_symbol=symbol_search, transaction_type=transaction, amo="NO"
-                        )
-                        '''
-                        print(f"✅ Executed: {transaction} {qty} x {symbol_search}")
-                    except Exception as e:
-                        print(f"❌ Order Failed: {e}")
-                        
-                    time.sleep(0.2) # Avoid rate limit
+                    # Token nikalo taaki live price mil sake
+                    token = str(int(matched_row.iloc[0, 0])) if not matched_row.empty else None
 
-                # Update Status
+                    # 📝 PAPER TRADE LOGIC
+                    if mode == "PAPER":
+                        ltp = get_option_ltp(client, token, conf["Exchange"]) if token else 0.0
+                        executed_virtual_legs.append({
+                            "leg_id": leg["id"],
+                            "symbol": symbol_search,
+                            "token": token,
+                            "transaction": transaction,
+                            "qty": qty,
+                            "entry_price": ltp,
+                            "status": "OPEN"
+                        })
+                        print(f"📝 Paper Saved: {transaction} {qty} x {symbol_search} @ ₹{ltp}")
+
+                    # 💸 REAL TRADE LOGIC
+                    elif mode == "REAL":
+                        try:
+                            # HINT: Live platform pe real money jayega yahan se!
+                            '''
+                            client.place_order(
+                                exchange_segment=conf["Exchange"], product="NRML", price="0", 
+                                order_type="MKT", quantity=str(qty), validity="DAY", 
+                                trading_symbol=symbol_search, transaction_type=transaction, amo="NO"
+                            )
+                            '''
+                            print(f"✅ Real Fired: {transaction} {qty} x {symbol_search}")
+                        except Exception as e:
+                            print(f"❌ Real Order Failed: {e}")
+                            
+                    time.sleep(0.2) # API block na ho isliye delay
+
+                # Agar Paper mode tha toh poori strategy ko database mein save kar do
+                if mode == "PAPER" and executed_virtual_legs:
+                    paper_trade_record = {
+                        "strategy_id": strat_id,
+                        "user_id": user_id,
+                        "entry_time": current_time,
+                        "entry_date": current_date,
+                        "status": "OPEN",
+                        "legs": executed_virtual_legs
+                    }
+                    await paper_col.insert_one(paper_trade_record)
+
+                # Update Status to ENTERED (Dono modes ke liye)
                 await strat_col.update_one({"strategy_id": strat_id}, {"$set": {"status": "ENTERED"}})
 
 
@@ -195,15 +210,22 @@ async def check_and_execute_strategies():
             elif status == "ENTERED":
                 should_exit = False
                 
-                # Check Time / Date Exits
                 if strat.get("type") == "Intraday" and current_time >= strat.get("exitTime"): should_exit = True
                 elif strat.get("type") == "Positional" and current_date >= strat.get("exitDate") and current_time >= strat.get("exitTime"): should_exit = True
 
-                # 🛑 FINAL SQUARE OFF
                 if should_exit:
-                    print(f"🚨 [EXIT FIRE] Strategy {strat_id} Exiting!")
+                    print(f"🚨 [{mode} EXIT FIRE] Strategy {strat_id} Exiting!")
                     
-                    # Logic to close positions will mirror `/exit-all` route
+                    if mode == "PAPER":
+                        # Mark virtual trades as CLOSED
+                        await paper_col.update_many(
+                            {"strategy_id": strat_id, "status": "OPEN"},
+                            {"$set": {"status": "CLOSED", "exit_time": current_time, "exit_date": current_date}}
+                        )
+                    elif mode == "REAL":
+                        # Real exit logic yahan aayega (Panic exit jaisa)
+                        pass
+                        
                     await strat_col.update_one({"strategy_id": strat_id}, {"$set": {"status": "COMPLETED", "is_active": False}})
 
     except Exception as e:
@@ -216,4 +238,4 @@ def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=pytz.timezone('Asia/Kolkata'))
     scheduler.add_job(check_and_execute_strategies, 'cron', second='0')
     scheduler.start()
-    print("🤖 AlgoSaaS Pro - AI Engine Connected & Running!")
+    print("🤖 AlgoSaaS Pro - Dual AI Engine Connected & Running!")

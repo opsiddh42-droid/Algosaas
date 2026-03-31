@@ -12,9 +12,9 @@ from app.core.database import get_collection
 
 # --- ⚙️ CONFIGURATION ---
 INDICES_CONFIG = {
-    "NIFTY": {"Exchange": "nse_fo", "LotSize": 25, "StrikeGap": 50, "Master": "nse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/nse_fo"},
+    "NIFTY": {"Exchange": "nse_fo", "LotSize": 65, "StrikeGap": 50, "Master": "nse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/nse_fo"},
     "BANKNIFTY": {"Exchange": "nse_fo", "LotSize": 15, "StrikeGap": 100, "Master": "nse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/nse_fo"},
-    "SENSEX": {"Exchange": "bse_fo", "LotSize": 10, "StrikeGap": 100, "Master": "bse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/bse_fo"}
+    "SENSEX": {"Exchange": "bse_fo", "LotSize": 20, "StrikeGap": 100, "Master": "bse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/bse_fo"}
 }
 
 # --- 🛠️ HELPERS ---

@@ -2,125 +2,301 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Strategy Builder | AlgoSaaS</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBase: '#0f172a',
+                        darkCard: '#1e293b',
+                        primary: '#3b82f6',
+                        success: '#10b981',
+                        danger: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .hidden { display: none !important; }
+        /* Custom Toggle Switch */
+        .toggle-checkbox:checked { right: 0; border-color: #3b82f6; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #3b82f6; }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
     </style>
 </head>
-<body class="p-4">
-    <div class="max-w-md mx-auto">
-        <header class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-bold text-blue-500">Create Strategy</h1>
-            <a href="index.html" class="text-sm text-slate-400">← Back</a>
-        </header>
+<body class="min-h-screen flex flex-col pb-20">
 
-        <div class="bg-slate-800 p-4 rounded-xl mb-4 border border-slate-700">
-            <label class="block text-xs text-slate-400 mb-1">Strategy Name</label>
-            <input type="text" id="strat-name" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg mb-4" placeholder="Ex: 9:20 Short Straddle">
-            
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Index</label>
-                    <select id="strat-index" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg">
-                        <option value="NIFTY">NIFTY</option>
-                        <option value="SENSEX">SENSEX</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Entry Time</label>
-                    <input type="time" id="strat-time" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg" value="09:20">
+    <header class="bg-darkCard border-b border-slate-700 p-4 sticky top-0 z-50 flex items-center justify-between shadow-md">
+        <div class="flex items-center gap-3">
+            <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 transition font-bold">
+                &larr;
+            </button>
+            <h2 class="text-lg font-bold text-white">🤖 Strategy Builder</h2>
+        </div>
+        <button onclick="saveStrategy()" class="bg-success text-white px-3 py-1.5 rounded text-xs font-bold shadow-md hover:bg-emerald-600">
+            💾 Save
+        </button>
+    </header>
+
+    <main class="p-3">
+        
+        <div class="mb-2"><h3 class="text-sm font-bold text-slate-300 ml-1">Instrument settings</h3></div>
+        <div class="bg-darkCard border border-slate-700 rounded-xl p-4 mb-6 shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <label class="text-sm text-slate-400">Index</label>
+                <select id="strat-index" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-primary outline-none w-1/2">
+                    <option value="NIFTY">NIFTY</option>
+                    <option value="BANKNIFTY">BANKNIFTY</option>
+                    <option value="SENSEX">SENSEX</option>
+                </select>
+            </div>
+            <div class="flex justify-between items-center">
+                <label class="text-sm text-slate-400">Underlying from</label>
+                <div class="flex bg-slate-900 rounded-lg p-1 border border-slate-700 w-1/2">
+                    <button type="button" onclick="setToggle('underlying', 'Cash')" id="btn-underlying-Cash" class="flex-1 py-1.5 text-xs font-bold bg-primary text-white rounded shadow transition-all">Cash</button>
+                    <button type="button" onclick="setToggle('underlying', 'Futures')" id="btn-underlying-Futures" class="flex-1 py-1.5 text-xs font-bold text-slate-400 hover:text-white rounded transition-all">Futures</button>
                 </div>
             </div>
         </div>
 
-        <h2 class="text-lg font-bold mb-3">Strategy Legs</h2>
-        <div id="legs-container" class="space-y-3 mb-6">
+        <div class="mb-2"><h3 class="text-sm font-bold text-slate-300 ml-1">Entry settings</h3></div>
+        <div class="bg-darkCard border border-slate-700 rounded-xl p-4 mb-6 shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <label class="text-sm text-slate-400">Strategy Type</label>
+                <div class="flex bg-slate-900 rounded-lg p-1 border border-slate-700 w-[60%]">
+                    <button type="button" onclick="setToggle('stratType', 'Intraday')" id="btn-stratType-Intraday" class="flex-1 py-1.5 text-[10px] font-bold bg-primary text-white rounded shadow transition-all">Intraday</button>
+                    <button type="button" onclick="setToggle('stratType', 'BTST')" id="btn-stratType-BTST" class="flex-1 py-1.5 text-[10px] font-bold text-slate-400 hover:text-white rounded transition-all">BTST</button>
+                    <button type="button" onclick="setToggle('stratType', 'Positional')" id="btn-stratType-Positional" class="flex-1 py-1.5 text-[10px] font-bold text-slate-400 hover:text-white rounded transition-all">Positional</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Entry Time</label>
+                    <input type="time" id="entry-time" value="09:15" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Exit Time</label>
+                    <input type="time" id="exit-time" value="15:15" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-2">
+            <h3 class="text-sm font-bold text-slate-300 ml-1">Leg Builder</h3>
+            <span class="text-xs text-primary font-bold">Collapse</span>
+        </div>
+        
+        <div class="bg-slate-800 border border-primary/50 rounded-xl p-4 mb-4 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+            
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <div class="col-span-1">
+                    <label class="block text-[10px] text-slate-400 mb-1 text-center">Select segment</label>
+                    <div class="flex bg-slate-900 rounded p-1 border border-slate-700">
+                        <button type="button" onclick="setToggle('segment', 'OPT')" id="btn-segment-OPT" class="flex-1 py-1 text-[10px] font-bold bg-primary text-white rounded">OPT</button>
+                        <button type="button" onclick="setToggle('segment', 'FUT')" id="btn-segment-FUT" class="flex-1 py-1 text-[10px] font-bold text-slate-400 rounded">FUT</button>
+                    </div>
+                </div>
+                <div class="col-span-1">
+                    <label class="block text-[10px] text-slate-400 mb-1 text-center">Total Lot</label>
+                    <input type="number" id="leg-lot" value="1" min="1" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm text-center outline-none">
+                </div>
+                <div class="col-span-1">
+                    <label class="block text-[10px] text-slate-400 mb-1 text-center">Position</label>
+                    <div class="flex bg-slate-900 rounded p-1 border border-slate-700">
+                        <button type="button" onclick="setToggle('position', 'Buy')" id="btn-position-Buy" class="flex-1 py-1 text-[10px] font-bold bg-success text-white rounded">Buy</button>
+                        <button type="button" onclick="setToggle('position', 'Sell')" id="btn-position-Sell" class="flex-1 py-1 text-[10px] font-bold text-slate-400 rounded">Sell</button>
+                    </div>
+                </div>
             </div>
 
-        <button onclick="addLeg()" class="w-full border-2 border-dashed border-slate-700 p-3 rounded-xl text-slate-400 font-bold mb-6 hover:border-blue-500 hover:text-blue-500 transition-colors">
-            + Add New Leg
-        </button>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-400 mb-1">Option Type</label>
+                    <div class="flex bg-slate-900 rounded p-1 border border-slate-700">
+                        <button type="button" onclick="setToggle('optType', 'CE')" id="btn-optType-CE" class="flex-1 py-1.5 text-xs font-bold bg-primary text-white rounded">Call</button>
+                        <button type="button" onclick="setToggle('optType', 'PE')" id="btn-optType-PE" class="flex-1 py-1.5 text-xs font-bold text-slate-400 rounded">Put</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-400 mb-1">Expiry</label>
+                    <select id="leg-expiry" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-xs outline-none">
+                        <option value="Weekly">Weekly</option>
+                        <option value="Next Weekly">Next Weekly</option>
+                        <option value="Monthly">Monthly</option>
+                    </select>
+                </div>
+            </div>
 
-        <button onclick="saveStrategy()" class="w-full bg-blue-600 p-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-900/20 active:scale-95 transition-transform">
-            🚀 Save & Deploy Strategy
-        </button>
-    </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-400 mb-1">Strike Criteria</label>
+                    <select id="leg-criteria" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-[10px] outline-none">
+                        <option value="Strike Type">Strike Type</option>
+                        <option value="Premium Range">Premium Range</option>
+                        <option value="Closest Premium">Closest Premium</option>
+                        <option value="Premium >=">Premium >=</option>
+                        <option value="Premium <=">Premium <=</option>
+                        <option value="Straddle Width">Straddle Width</option>
+                        <option value="% of ATM">% of ATM</option>
+                        <option value="Synthetic Future">Synthetic Future</option>
+                        <option value="ATM Straddle Premium %">ATM Straddle Premium %</option>
+                        <option value="Closest Delta">Closest Delta</option>
+                        <option value="Delta Range">Delta Range</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-400 mb-1">Strike Type</label>
+                    <select id="leg-strike-type" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-xs outline-none">
+                        <option value="ATM">ATM</option>
+                        <option value="ITM1">ITM 1</option>
+                        <option value="ITM2">ITM 2</option>
+                        <option value="OTM1">OTM 1</option>
+                        <option value="OTM2">OTM 2</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="addLeg()" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 shadow-lg">
+                + Add Leg
+            </button>
+        </div>
+
+        <div id="added-legs-container" class="space-y-3 mb-6">
+            </div>
+
+        <div class="mb-2"><h3 class="text-sm font-bold text-slate-300 ml-1">Overall strategy settings</h3></div>
+        <div class="bg-darkCard border border-slate-700 rounded-xl p-4 shadow-lg mb-6">
+            
+            <div class="flex justify-between items-center">
+                <label class="text-sm font-bold text-slate-300">Overall Stop Loss</label>
+                <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                    <input type="checkbox" name="toggle" id="toggle-sl" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-500 z-10"/>
+                    <label for="toggle-sl" class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-600 cursor-pointer"></label>
+                </div>
+            </div>
+            
+        </div>
+
+    </main>
 
     <script>
-        let legs = [];
+        // State variables to hold active toggle values
+        const stratState = {
+            underlying: 'Cash',
+            stratType: 'Intraday',
+            segment: 'OPT',
+            position: 'Buy',
+            optType: 'CE'
+        };
 
-        function addLeg() {
-            const legId = Date.now();
-            const legHtml = `
-                <div id="leg-${legId}" class="bg-slate-800 p-4 rounded-xl border border-slate-700 relative">
-                    <div class="grid grid-cols-2 gap-2 mb-3">
-                        <select class="leg-type bg-slate-900 p-2 rounded border border-slate-700 text-sm">
-                            <option value="CE">CALL (CE)</option>
-                            <option value="PE">PUT (PE)</option>
-                        </select>
-                        <select class="leg-side bg-slate-900 p-2 rounded border border-slate-700 text-sm">
-                            <option value="SELL">SELL</option>
-                            <option value="BUY">BUY</option>
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="number" class="leg-offset bg-slate-900 p-2 rounded border border-slate-700 text-sm" placeholder="Strike Offset (Ex: 0)">
-                        <input type="number" class="leg-lots bg-slate-900 p-2 rounded border border-slate-700 text-sm" placeholder="Lots">
-                    </div>
-                    <button onclick="removeLeg(${legId})" class="absolute -top-2 -right-2 bg-red-600 w-6 h-6 rounded-full text-xs">✕</button>
-                </div>
-            `;
-            document.getElementById('legs-container').insertAdjacentHTML('beforeend', legHtml);
-        }
+        let legsList = []; // Array to store added legs
 
-        function removeLeg(id) {
-            document.getElementById(`leg-${id}`).remove();
-        }
-
-        async function saveStrategy() {
-            // Data collection logic
-            const name = document.getElementById('strat-name').value;
-            if(!name) { alert("Please enter strategy name"); return; }
+        // Generic function to handle UI toggles (Segmented Controls)
+        function setToggle(category, value) {
+            stratState[category] = value;
             
-            const legElements = document.querySelectorAll('#legs-container > div');
-            const strategyLegs = [];
-            
-            legElements.forEach(el => {
-                strategyLegs.push({
-                    option_type: el.querySelector('.leg-type').value,
-                    side: el.querySelector('.leg-side').value,
-                    strike_offset: parseInt(el.querySelector('.leg-offset').value) || 0,
-                    lots: parseInt(el.querySelector('.leg-lots').value) || 1
-                });
+            // Find all buttons in this category
+            const buttons = document.querySelectorAll(`[id^="btn-${category}-"]`);
+            buttons.forEach(btn => {
+                // Reset styling
+                btn.className = btn.className.replace(/bg-primary|bg-success|bg-danger|text-white|shadow/g, '').trim();
+                btn.classList.add('text-slate-400'); // Default inactive text
+                
+                // If this is the active button, apply active styling
+                if(btn.id === `btn-${category}-${value}`) {
+                    btn.classList.remove('text-slate-400');
+                    btn.classList.add('text-white', 'shadow');
+                    
+                    if(value === 'Buy') btn.classList.add('bg-success');
+                    else if(value === 'Sell') btn.classList.add('bg-danger');
+                    else btn.classList.add('bg-primary');
+                }
             });
+        }
 
-            const strategyData = {
-                strategy_name: name,
-                index: document.getElementById('strat-index').value,
-                entry_time: document.getElementById('strat-time').value,
-                exit_time: "15:15",
-                legs: strategyLegs,
-                is_active: true
+        // Add Leg to UI and State
+        function addLeg() {
+            const lot = document.getElementById('leg-lot').value;
+            const expiry = document.getElementById('leg-expiry').value;
+            const criteria = document.getElementById('leg-criteria').value;
+            const strikeType = document.getElementById('leg-strike-type').value;
+
+            const leg = {
+                id: Date.now(),
+                segment: stratState.segment,
+                lot: lot,
+                position: stratState.position,
+                optType: stratState.optType,
+                expiry: expiry,
+                criteria: criteria,
+                strikeType: strikeType
             };
 
-            const token = localStorage.getItem('saas_token');
-            const response = await fetch('http://127.0.0.1:8000/api/v1/strategy/save', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(strategyData)
-            });
+            legsList.push(leg);
+            renderLegs();
+        }
 
-            if(response.ok) {
-                alert("Strategy saved successfully!");
-                window.location.href = 'index.html';
-            } else {
-                alert("Error saving strategy");
+        // Render added legs in the container
+        function renderLegs() {
+            const container = document.getElementById('added-legs-container');
+            container.innerHTML = '';
+
+            legsList.forEach((leg, index) => {
+                const posColor = leg.position === 'Buy' ? 'text-success bg-success/10 border-success/30' : 'text-danger bg-danger/10 border-danger/30';
+                const optColor = leg.optType === 'CE' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400';
+
+                const legHTML = `
+                    <div class="bg-slate-800 border ${posColor} rounded-lg p-3 relative shadow-md">
+                        <button onclick="removeLeg(${leg.id})" class="absolute top-2 right-3 text-slate-500 hover:text-danger font-bold text-lg">&times;</button>
+                        
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-bold ${leg.position === 'Buy' ? 'text-success' : 'text-danger'}">${leg.position}</span>
+                            <span class="text-xs px-2 py-0.5 rounded ${optColor} font-bold">${leg.optType}</span>
+                            <span class="text-xs text-slate-400 px-2 py-0.5 bg-slate-700 rounded">${leg.lot} Lot</span>
+                        </div>
+                        
+                        <div class="text-xs text-slate-300">
+                            Exp: <span class="text-white font-semibold">${leg.expiry}</span> | 
+                            Strike: <span class="text-white font-semibold">${leg.strikeType}</span> 
+                            <span class="text-slate-500">(${leg.criteria})</span>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += legHTML;
+            });
+        }
+
+        // Remove a leg
+        function removeLeg(id) {
+            legsList = legsList.filter(l => l.id !== id);
+            renderLegs();
+        }
+
+        // Save Strategy Action
+        function saveStrategy() {
+            if(legsList.length === 0) {
+                alert("Please add at least 1 leg to save the strategy.");
+                return;
             }
+
+            const strategyData = {
+                index: document.getElementById('strat-index').value,
+                underlying: stratState.underlying,
+                type: stratState.stratType,
+                entryTime: document.getElementById('entry-time').value,
+                exitTime: document.getElementById('exit-time').value,
+                legs: legsList
+            };
+
+            console.log("Saving Strategy Payload:", strategyData);
+            alert("Strategy parameters saved! (Backend integration pending)");
+            // Next step: Send 'strategyData' to backend API via fetch()
         }
     </script>
 </body>

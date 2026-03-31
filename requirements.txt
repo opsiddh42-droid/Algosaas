@@ -5,6 +5,7 @@ motor
 python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
+bcrypt==3.2.2
 git+https://github.com/Kotak-Neo/kotak-neo-api.git#egg=neo_api_client
 pandas
 wsproto

@@ -23,7 +23,6 @@
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
         .hidden { display: none !important; }
-        /* Custom Toggle Switch */
         .toggle-checkbox:checked { right: 0; border-color: #3b82f6; }
         .toggle-checkbox:checked + .toggle-label { background-color: #3b82f6; }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
@@ -33,18 +32,15 @@
 
     <header class="bg-darkCard border-b border-slate-700 p-4 sticky top-0 z-50 flex items-center justify-between shadow-md">
         <div class="flex items-center gap-3">
-            <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 transition font-bold">
-                &larr;
-            </button>
+            <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 transition font-bold">&larr;</button>
             <h2 class="text-lg font-bold text-white">🤖 Strategy Builder</h2>
         </div>
-        <button onclick="saveStrategy()" class="bg-success text-white px-3 py-1.5 rounded text-xs font-bold shadow-md hover:bg-emerald-600">
+        <button id="save-strat-btn" onclick="saveStrategy()" class="bg-success text-white px-3 py-1.5 rounded text-xs font-bold shadow-md hover:bg-emerald-600">
             💾 Save
         </button>
     </header>
 
     <main class="p-3">
-        
         <div class="mb-2"><h3 class="text-sm font-bold text-slate-300 ml-1">Instrument settings</h3></div>
         <div class="bg-darkCard border border-slate-700 rounded-xl p-4 mb-6 shadow-lg">
             <div class="flex justify-between items-center mb-4">
@@ -66,12 +62,13 @@
 
         <div class="mb-2"><h3 class="text-sm font-bold text-slate-300 ml-1">Entry settings</h3></div>
         <div class="bg-darkCard border border-slate-700 rounded-xl p-4 mb-6 shadow-lg">
+            
             <div class="flex justify-between items-center mb-4">
                 <label class="text-sm text-slate-400">Strategy Type</label>
                 <div class="flex bg-slate-900 rounded-lg p-1 border border-slate-700 w-[60%]">
-                    <button type="button" onclick="setToggle('stratType', 'Intraday')" id="btn-stratType-Intraday" class="flex-1 py-1.5 text-[10px] font-bold bg-primary text-white rounded shadow transition-all">Intraday</button>
-                    <button type="button" onclick="setToggle('stratType', 'BTST')" id="btn-stratType-BTST" class="flex-1 py-1.5 text-[10px] font-bold text-slate-400 hover:text-white rounded transition-all">BTST</button>
-                    <button type="button" onclick="setToggle('stratType', 'Positional')" id="btn-stratType-Positional" class="flex-1 py-1.5 text-[10px] font-bold text-slate-400 hover:text-white rounded transition-all">Positional</button>
+                    <button type="button" onclick="setStratType('Intraday')" id="btn-stratType-Intraday" class="flex-1 py-1.5 text-[10px] font-bold bg-primary text-white rounded shadow transition-all">Intraday</button>
+                    <button type="button" onclick="setStratType('BTST')" id="btn-stratType-BTST" class="flex-1 py-1.5 text-[10px] font-bold text-slate-400 hover:text-white rounded transition-all">BTST</button>
+                    <button type="button" onclick="setStratType('Positional')" id="btn-stratType-Positional" class="flex-1 py-1.5 text-[10px] font-bold text-slate-400 hover:text-white rounded transition-all">Positional</button>
                 </div>
             </div>
             
@@ -85,18 +82,42 @@
                     <input type="time" id="exit-time" value="15:15" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary">
                 </div>
             </div>
+            
+            <div id="positional-date-box" class="hidden mb-4">
+                <label class="block text-xs text-slate-400 mb-1">Exit Date (For Positional)</label>
+                <input type="date" id="exit-date" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary">
+            </div>
+
+            <div class="border-t border-slate-700 pt-3 mt-3">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-xs font-bold text-slate-300">Spot Movement Trigger</label>
+                    <div class="relative inline-block w-8 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="toggle-spot" onchange="toggleSpotDetails()" class="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-500 z-10"/>
+                        <label for="toggle-spot" class="toggle-label block overflow-hidden h-4 rounded-full bg-slate-600 cursor-pointer"></label>
+                    </div>
+                </div>
+                <div id="spot-details" class="hidden grid grid-cols-2 gap-3 mt-2">
+                    <div>
+                        <select id="spot-direction" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-xs outline-none">
+                            <option value="UP">Moves UP By</option>
+                            <option value="DOWN">Moves DOWN By</option>
+                        </select>
+                    </div>
+                    <div>
+                        <input type="number" id="spot-points" placeholder="Points (e.g. 50)" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-xs outline-none">
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="flex justify-between items-center mb-2">
             <h3 class="text-sm font-bold text-slate-300 ml-1">Leg Builder</h3>
-            <span class="text-xs text-primary font-bold">Collapse</span>
         </div>
         
         <div class="bg-slate-800 border border-primary/50 rounded-xl p-4 mb-4 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-            
             <div class="grid grid-cols-3 gap-2 mb-4">
                 <div class="col-span-1">
-                    <label class="block text-[10px] text-slate-400 mb-1 text-center">Select segment</label>
+                    <label class="block text-[10px] text-slate-400 mb-1 text-center">Segment</label>
                     <div class="flex bg-slate-900 rounded p-1 border border-slate-700">
                         <button type="button" onclick="setToggle('segment', 'OPT')" id="btn-segment-OPT" class="flex-1 py-1 text-[10px] font-bold bg-primary text-white rounded">OPT</button>
                         <button type="button" onclick="setToggle('segment', 'FUT')" id="btn-segment-FUT" class="flex-1 py-1 text-[10px] font-bold text-slate-400 rounded">FUT</button>
@@ -129,6 +150,7 @@
                         <option value="Weekly">Weekly</option>
                         <option value="Next Weekly">Next Weekly</option>
                         <option value="Monthly">Monthly</option>
+                        <option value="Next Monthly">Next Monthly</option>
                     </select>
                 </div>
             </div>
@@ -136,83 +158,91 @@
             <div class="grid grid-cols-2 gap-3 mb-4">
                 <div>
                     <label class="block text-[10px] text-slate-400 mb-1">Strike Criteria</label>
-                    <select id="leg-criteria" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-[10px] outline-none">
+                    <select id="leg-criteria" onchange="toggleStrikeInput()" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-[10px] outline-none">
                         <option value="Strike Type">Strike Type</option>
-                        <option value="Premium Range">Premium Range</option>
                         <option value="Closest Premium">Closest Premium</option>
                         <option value="Premium >=">Premium >=</option>
                         <option value="Premium <=">Premium <=</option>
-                        <option value="Straddle Width">Straddle Width</option>
-                        <option value="% of ATM">% of ATM</option>
-                        <option value="Synthetic Future">Synthetic Future</option>
-                        <option value="ATM Straddle Premium %">ATM Straddle Premium %</option>
-                        <option value="Closest Delta">Closest Delta</option>
-                        <option value="Delta Range">Delta Range</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-[10px] text-slate-400 mb-1">Strike Type</label>
-                    <select id="leg-strike-type" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-xs outline-none">
-                        <option value="ATM">ATM</option>
-                        <option value="ITM1">ITM 1</option>
-                        <option value="ITM2">ITM 2</option>
-                        <option value="OTM1">OTM 1</option>
-                        <option value="OTM2">OTM 2</option>
-                    </select>
+                    <label id="strike-value-label" class="block text-[10px] text-slate-400 mb-1">Strike Type</label>
+                    <div id="strike-type-container">
+                        <select id="leg-strike-type" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-xs outline-none">
+                            <option value="ATM">ATM</option>
+                            <option value="ITM1">ITM 1</option><option value="ITM2">ITM 2</option><option value="ITM3">ITM 3</option><option value="ITM4">ITM 4</option><option value="ITM5">ITM 5</option>
+                            <option value="OTM1">OTM 1</option><option value="OTM2">OTM 2</option><option value="OTM3">OTM 3</option><option value="OTM4">OTM 4</option><option value="OTM5">OTM 5</option>
+                        </select>
+                    </div>
+                    <div id="premium-value-container" class="hidden">
+                        <input type="number" id="leg-premium-value" placeholder="e.g. 50" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-2 text-white text-xs outline-none">
+                    </div>
                 </div>
             </div>
 
-            <button onclick="addLeg()" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 shadow-lg">
+            <div class="border-t border-slate-700 pt-3 mt-2">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-[10px] font-bold text-success">Target Profit (per leg)</label>
+                    <input type="checkbox" id="leg-target-toggle" onchange="toggleLegInput('target')" class="rounded bg-slate-900 border-slate-600">
+                </div>
+                <div id="leg-target-box" class="hidden grid grid-cols-2 gap-2 mb-3">
+                    <select id="leg-target-type" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-[10px] outline-none">
+                        <option value="Points">Points</option>
+                        <option value="Percentage">%</option>
+                    </select>
+                    <input type="number" id="leg-target-val" placeholder="Value" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-[10px] outline-none">
+                </div>
+
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-[10px] font-bold text-danger">Stop Loss (per leg)</label>
+                    <input type="checkbox" id="leg-sl-toggle" onchange="toggleLegInput('sl')" class="rounded bg-slate-900 border-slate-600">
+                </div>
+                <div id="leg-sl-box" class="hidden grid grid-cols-2 gap-2">
+                    <select id="leg-sl-type" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-[10px] outline-none">
+                        <option value="Points">Points</option>
+                        <option value="Percentage">%</option>
+                    </select>
+                    <input type="number" id="leg-sl-val" placeholder="Value" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-[10px] outline-none">
+                </div>
+            </div>
+
+            <button onclick="addLeg()" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors mt-4 shadow-lg">
                 + Add Leg
             </button>
         </div>
 
-        <div id="added-legs-container" class="space-y-3 mb-6">
-            </div>
+        <div id="added-legs-container" class="space-y-3 mb-6"></div>
 
         <div class="mb-2"><h3 class="text-sm font-bold text-slate-300 ml-1">Overall strategy settings</h3></div>
         <div class="bg-darkCard border border-slate-700 rounded-xl p-4 shadow-lg mb-6">
-            
-            <div class="flex justify-between items-center">
-                <label class="text-sm font-bold text-slate-300">Overall Stop Loss</label>
+            <div class="flex justify-between items-center mb-2">
+                <label class="text-sm font-bold text-slate-300">Overall Stop Loss (MTM)</label>
                 <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                    <input type="checkbox" name="toggle" id="toggle-sl" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-500 z-10"/>
-                    <label for="toggle-sl" class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-600 cursor-pointer"></label>
+                    <input type="checkbox" id="toggle-overall-sl" onchange="toggleOverallSL()" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-500 z-10"/>
+                    <label for="toggle-overall-sl" class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-600 cursor-pointer"></label>
                 </div>
             </div>
-            
+            <div id="overall-sl-details" class="hidden mt-3 pt-3 border-t border-slate-700">
+                <input type="number" id="overall-sl-value" placeholder="Max Loss in ₹ (e.g. 5000)" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white text-xs outline-none">
+            </div>
         </div>
-
     </main>
 
     <script>
-        // State variables to hold active toggle values
-        const stratState = {
-            underlying: 'Cash',
-            stratType: 'Intraday',
-            segment: 'OPT',
-            position: 'Buy',
-            optType: 'CE'
-        };
+        const API_BASE_URL = "https://algosaas.onrender.com/api/v1";
+        
+        const stratState = { underlying: 'Cash', stratType: 'Intraday', segment: 'OPT', position: 'Buy', optType: 'CE' };
+        let legsList = [];
 
-        let legsList = []; // Array to store added legs
-
-        // Generic function to handle UI toggles (Segmented Controls)
         function setToggle(category, value) {
             stratState[category] = value;
-            
-            // Find all buttons in this category
             const buttons = document.querySelectorAll(`[id^="btn-${category}-"]`);
             buttons.forEach(btn => {
-                // Reset styling
                 btn.className = btn.className.replace(/bg-primary|bg-success|bg-danger|text-white|shadow/g, '').trim();
-                btn.classList.add('text-slate-400'); // Default inactive text
-                
-                // If this is the active button, apply active styling
+                btn.classList.add('text-slate-400'); 
                 if(btn.id === `btn-${category}-${value}`) {
                     btn.classList.remove('text-slate-400');
                     btn.classList.add('text-white', 'shadow');
-                    
                     if(value === 'Buy') btn.classList.add('bg-success');
                     else if(value === 'Sell') btn.classList.add('bg-danger');
                     else btn.classList.add('bg-primary');
@@ -220,70 +250,136 @@
             });
         }
 
-        // Add Leg to UI and State
-        function addLeg() {
-            const lot = document.getElementById('leg-lot').value;
-            const expiry = document.getElementById('leg-expiry').value;
+        // --- STRATEGY TYPE (INTRADAY VS POSITIONAL) ---
+        function setStratType(type) {
+            setToggle('stratType', type);
+            const dateBox = document.getElementById('positional-date-box');
+            if(type === 'Positional') {
+                dateBox.classList.remove('hidden');
+            } else {
+                dateBox.classList.add('hidden');
+                document.getElementById('exit-time').value = "15:15"; // Default intraday exit
+            }
+        }
+
+        // --- TOGGLES ---
+        function toggleStrikeInput() {
             const criteria = document.getElementById('leg-criteria').value;
-            const strikeType = document.getElementById('leg-strike-type').value;
+            if(criteria === 'Strike Type') {
+                document.getElementById('strike-type-container').classList.remove('hidden');
+                document.getElementById('premium-value-container').classList.add('hidden');
+                document.getElementById('strike-value-label').innerText = 'Strike Type';
+            } else {
+                document.getElementById('strike-type-container').classList.add('hidden');
+                document.getElementById('premium-value-container').classList.remove('hidden');
+                document.getElementById('strike-value-label').innerText = 'Target Premium';
+            }
+        }
+
+        function toggleSpotDetails() {
+            const isChecked = document.getElementById('toggle-spot').checked;
+            if(isChecked) document.getElementById('spot-details').classList.remove('hidden');
+            else document.getElementById('spot-details').classList.add('hidden');
+        }
+
+        function toggleLegInput(type) {
+            const isChecked = document.getElementById(`leg-${type}-toggle`).checked;
+            if(isChecked) document.getElementById(`leg-${type}-box`).classList.remove('hidden');
+            else document.getElementById(`leg-${type}-box`).classList.add('hidden');
+        }
+
+        function toggleOverallSL() {
+            const isChecked = document.getElementById('toggle-overall-sl').checked;
+            if(isChecked) document.getElementById('overall-sl-details').classList.remove('hidden');
+            else document.getElementById('overall-sl-details').classList.add('hidden');
+        }
+
+        // --- ADD LEG ---
+        function addLeg() {
+            const criteria = document.getElementById('leg-criteria').value;
+            let targetValue = criteria === 'Strike Type' ? document.getElementById('leg-strike-type').value : document.getElementById('leg-premium-value').value;
+            
+            if(criteria !== 'Strike Type' && !targetValue) { alert("Please enter the premium value!"); return; }
+
+            // Target Logic
+            const targetEnabled = document.getElementById('leg-target-toggle').checked;
+            const targetType = targetEnabled ? document.getElementById('leg-target-type').value : null;
+            const targetVal = targetEnabled ? document.getElementById('leg-target-val').value : null;
+
+            // SL Logic
+            const slEnabled = document.getElementById('leg-sl-toggle').checked;
+            const slType = slEnabled ? document.getElementById('leg-sl-type').value : null;
+            const slVal = slEnabled ? document.getElementById('leg-sl-val').value : null;
 
             const leg = {
                 id: Date.now(),
                 segment: stratState.segment,
-                lot: lot,
+                lot: document.getElementById('leg-lot').value,
                 position: stratState.position,
                 optType: stratState.optType,
-                expiry: expiry,
+                expiry: document.getElementById('leg-expiry').value,
                 criteria: criteria,
-                strikeType: strikeType
+                targetValue: targetValue,
+                target: { enabled: targetEnabled, type: targetType, value: targetVal },
+                sl: { enabled: slEnabled, type: slType, value: slVal }
             };
 
             legsList.push(leg);
             renderLegs();
         }
 
-        // Render added legs in the container
         function renderLegs() {
             const container = document.getElementById('added-legs-container');
             container.innerHTML = '';
 
-            legsList.forEach((leg, index) => {
+            legsList.forEach((leg) => {
                 const posColor = leg.position === 'Buy' ? 'text-success bg-success/10 border-success/30' : 'text-danger bg-danger/10 border-danger/30';
-                const optColor = leg.optType === 'CE' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400';
+                
+                let extraHTML = "";
+                if(leg.target.enabled) extraHTML += `<span class="text-[10px] bg-success/20 text-success px-1 py-0.5 rounded">Tgt: ${leg.target.value} ${leg.target.type}</span> `;
+                if(leg.sl.enabled) extraHTML += `<span class="text-[10px] bg-danger/20 text-danger px-1 py-0.5 rounded">SL: ${leg.sl.value} ${leg.sl.type}</span>`;
 
                 const legHTML = `
                     <div class="bg-slate-800 border ${posColor} rounded-lg p-3 relative shadow-md">
                         <button onclick="removeLeg(${leg.id})" class="absolute top-2 right-3 text-slate-500 hover:text-danger font-bold text-lg">&times;</button>
-                        
-                        <div class="flex items-center gap-2 mb-2">
+                        <div class="flex items-center gap-2 mb-1">
                             <span class="font-bold ${leg.position === 'Buy' ? 'text-success' : 'text-danger'}">${leg.position}</span>
-                            <span class="text-xs px-2 py-0.5 rounded ${optColor} font-bold">${leg.optType}</span>
+                            <span class="text-xs px-2 py-0.5 rounded bg-slate-700 font-bold text-white">${leg.optType}</span>
                             <span class="text-xs text-slate-400 px-2 py-0.5 bg-slate-700 rounded">${leg.lot} Lot</span>
                         </div>
-                        
-                        <div class="text-xs text-slate-300">
+                        <div class="text-xs text-slate-300 mb-1">
                             Exp: <span class="text-white font-semibold">${leg.expiry}</span> | 
-                            Strike: <span class="text-white font-semibold">${leg.strikeType}</span> 
-                            <span class="text-slate-500">(${leg.criteria})</span>
+                            ${leg.criteria === 'Strike Type' ? 'Strike:' : 'Premium:'} <span class="text-white font-semibold">${leg.targetValue}</span>
                         </div>
+                        <div class="flex gap-2">${extraHTML}</div>
                     </div>
                 `;
                 container.innerHTML += legHTML;
             });
         }
 
-        // Remove a leg
         function removeLeg(id) {
             legsList = legsList.filter(l => l.id !== id);
             renderLegs();
         }
 
-        // Save Strategy Action
-        function saveStrategy() {
+        // --- SAVE TO BACKEND ---
+        async function saveStrategy() {
             if(legsList.length === 0) {
-                alert("Please add at least 1 leg to save the strategy.");
-                return;
+                alert("⚠️ Please add at least 1 leg."); return;
             }
+
+            const token = localStorage.getItem('saas_token');
+            if(!token) { alert("Please login first."); return; }
+
+            // Spot Momentum
+            const spotEnabled = document.getElementById('toggle-spot').checked;
+            const spotDirection = spotEnabled ? document.getElementById('spot-direction').value : null;
+            const spotPoints = spotEnabled ? document.getElementById('spot-points').value : null;
+
+            // Overall MTM SL
+            const overallSlEnabled = document.getElementById('toggle-overall-sl').checked;
+            const overallSlValue = overallSlEnabled ? document.getElementById('overall-sl-value').value : null;
 
             const strategyData = {
                 index: document.getElementById('strat-index').value,
@@ -291,12 +387,35 @@
                 type: stratState.stratType,
                 entryTime: document.getElementById('entry-time').value,
                 exitTime: document.getElementById('exit-time').value,
+                exitDate: stratState.stratType === 'Positional' ? document.getElementById('exit-date').value : null,
+                spotTrigger: { enabled: spotEnabled, direction: spotDirection, points: spotPoints },
+                overallSL: { enabled: overallSlEnabled, value: overallSlValue },
                 legs: legsList
             };
 
-            console.log("Saving Strategy Payload:", strategyData);
-            alert("Strategy parameters saved! (Backend integration pending)");
-            // Next step: Send 'strategyData' to backend API via fetch()
+            const btn = document.getElementById('save-strat-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="loader border-white border-t-transparent w-4 h-4 mr-1"></span> Saving...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/strategy/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(strategyData)
+                });
+                const data = await response.json();
+                if(response.ok) {
+                    alert(data.message || "✅ Strategy Saved Successfully!"); 
+                    legsList = []; renderLegs();
+                } else {
+                    alert("Error: " + (data.detail || "Failed to save strategy"));
+                }
+            } catch (err) {
+                alert("Network Error: Failed to connect to backend server.");
+            } finally {
+                btn.innerHTML = originalText; btn.disabled = false;
+            }
         }
     </script>
 </body>

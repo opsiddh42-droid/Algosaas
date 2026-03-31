@@ -105,7 +105,7 @@
         <main class="p-4 flex-1">
             <div class="bg-darkCard border border-slate-700 rounded-xl p-5 mb-5 text-center shadow-lg">
                 <h3 class="text-slate-400 text-sm font-semibold tracking-wider uppercase">Total P&L (MTM)</h3>
-                <div id="live-pnl" class="text-4xl font-bold mt-2 text-success">+ ₹0.00</div>
+                <div id="live-pnl" class="text-4xl font-bold mt-2 text-slate-300">+ ₹0.00</div>
             </div>
 
             <div id="broker-box" class="bg-darkCard border border-slate-700 rounded-xl p-5 mb-5">
@@ -120,17 +120,17 @@
             </div>
             
             <div class="grid grid-cols-2 gap-3 mb-5">
-                <button onclick="window.location.href='optionchain.html'" class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
+                <button onclick="window.location.href='optionchain.html'" class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors shadow-md">
                     <div class="text-2xl mb-1">⛓️</div>
                     <div class="text-sm font-bold">Option Chain</div>
                 </button>
-                <button onclick="window.location.href='strategy.html'" class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors">
+                <button onclick="window.location.href='strategy.html'" class="bg-darkCard border border-slate-700 p-4 rounded-xl text-center hover:border-primary transition-colors shadow-md">
                     <div class="text-2xl mb-1">🤖</div>
                     <div class="text-sm font-bold">Strategies</div>
                 </button>
             </div>
 
-            <button onclick="triggerExitAll()" class="w-full bg-gradient-to-r from-red-600 to-red-800 text-white font-black text-lg py-4 rounded-xl shadow-[0_4px_15px_rgba(220,38,38,0.4)] mt-auto active:scale-95 transition-transform uppercase tracking-wider border border-red-500">
+            <button id="panic-btn" onclick="triggerExitAll()" class="w-full bg-gradient-to-r from-red-600 to-red-800 text-white font-black text-lg py-4 rounded-xl shadow-[0_4px_15px_rgba(220,38,38,0.4)] mt-auto active:scale-95 transition-transform uppercase tracking-wider border border-red-500">
                 🚨 Panic Exit All
             </button>
         </main>
@@ -241,7 +241,7 @@
             return "Unknown error occurred";
         }
 
-        // --- 1. SIGNUP & LOGIN ---
+        // --- AUTH API ---
         async function handleSignup(e) {
             e.preventDefault();
             const btn = document.getElementById('signup-btn');
@@ -324,12 +324,13 @@
             }
         }
 
+        // --- UI & DASHBOARD ---
         function showDashboard(userName, kotakStatus) {
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('dashboard-section').classList.remove('hidden');
             document.getElementById('welcome-msg').innerText = `Welcome, ${userName}`;
             updateKotakUI(kotakStatus);
-            connectWebSocket();
+            connectWebSocket(); // WebSocket ab sahi token se connect hoga
         }
 
         function updateKotakUI(status) {
@@ -349,32 +350,27 @@
             }
         }
 
-        // --- 2. LOGOUT LOGIC ---
         function logout() {
             if(confirm("Are you sure you want to logout?")) {
                 localStorage.clear();
                 if(wsConnection) wsConnection.close();
                 document.getElementById('auth-section').classList.remove('hidden');
                 document.getElementById('dashboard-section').classList.add('hidden');
-                document.getElementById('login-password').value = ''; // clear password
+                document.getElementById('login-password').value = ''; 
                 toggleAuth('login'); 
             }
         }
 
-        // --- 3. KOTAK SMART MODAL LOGIC ---
+        // --- KOTAK MODAL API ---
         function openKotakModal() {
             document.getElementById('kotak-modal').classList.remove('hidden');
             document.getElementById('kotak-error').classList.add('hidden');
-            
             const isSaved = localStorage.getItem('saas_kotak') === 'Active';
-            
             if (isSaved) {
-                // Agar data saved hai, toh sirf TOTP wala view dikhao
                 document.getElementById('kotak-full-form').classList.add('hidden');
                 document.getElementById('kotak-totp-form').classList.remove('hidden');
                 document.getElementById('kotak-quick-totp').value = ''; 
             } else {
-                // Agar naya user hai, toh full form dikhao
                 document.getElementById('kotak-full-form').classList.remove('hidden');
                 document.getElementById('kotak-totp-form').classList.add('hidden');
                 document.getElementById('kotak-full-totp').value = '';
@@ -389,11 +385,10 @@
             if(confirm("This will clear your saved broker details. Are you sure?")) {
                 localStorage.setItem('saas_kotak', 'Inactive');
                 updateKotakUI('Inactive');
-                openKotakModal(); // Reload the modal to show full form
+                openKotakModal(); 
             }
         }
 
-        // --- SCENARIO A: First Time Setup (Full Form) ---
         async function handleKotakConnect(e) {
             e.preventDefault();
             const btn = document.getElementById('kotak-submit-btn');
@@ -414,14 +409,12 @@
             errorMsg.classList.add('hidden');
 
             try {
-                // API to save FULL data
                 const response = await fetch(`${API_BASE_URL}/broker/kotak-login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(payload)
                 });
                 const data = await response.json();
-
                 if(response.ok) {
                     alert("Profile Saved & Connected!");
                     localStorage.setItem('saas_kotak', 'Active');
@@ -440,7 +433,6 @@
             }
         }
 
-        // --- SCENARIO B: Returning User (Only TOTP) ---
         async function handleKotakTotpOnly(e) {
             e.preventDefault();
             const btn = document.getElementById('kotak-totp-btn');
@@ -453,16 +445,12 @@
             errorMsg.classList.add('hidden');
 
             try {
-                // NOTE: Jab backend mein naya route ban jayega `/broker/kotak-totp-login`, 
-                // tab wo automatically user database se mobile/UCC nikal lega aur bas ye TOTP verify karega.
                 const response = await fetch(`${API_BASE_URL}/broker/kotak-totp-login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ totp: totpVal })
                 });
-                
                 const data = await response.json();
-
                 if(response.ok) {
                     alert("Live Trading Session Started! 🟢");
                     closeKotakModal();
@@ -479,32 +467,74 @@
             }
         }
 
-        // --- WEBSOCKETS (Dummy logic for now) ---
+        // --- 🟢 NEW LIVE P&L WEBSOCKET ENGINE ---
         function connectWebSocket() {
-            wsConnection = new WebSocket(`${WS_BASE_URL}/test_user`);
+            const token = localStorage.getItem('saas_token');
+            if(!token) return;
+
+            // ✅ Backend par Query Parameter mein token bhej raha hai
+            wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}`);
+            
             wsConnection.onopen = () => {
                 const indicator = document.getElementById('ws-indicator');
                 indicator.classList.remove('bg-danger', 'shadow-[0_0_8px_#ef4444]');
                 indicator.classList.add('bg-success', 'shadow-[0_0_8px_#10b981]');
             };
+
             wsConnection.onmessage = (event) => {
                 const data = JSON.parse(event.data);
+                
+                // P&L update aane par HTML aur Color update karo
                 if(data.pnl !== undefined) {
                     const pnlEl = document.getElementById('live-pnl');
                     pnlEl.innerText = `${data.pnl >= 0 ? '+' : ''} ₹${data.pnl.toFixed(2)}`;
-                    pnlEl.className = `text-4xl font-bold mt-2 ${data.pnl >= 0 ? 'text-success' : 'text-danger'}`;
+                    
+                    if(data.pnl >= 0) {
+                        pnlEl.className = 'text-4xl font-bold mt-2 text-success drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]';
+                    } else {
+                        pnlEl.className = 'text-4xl font-bold mt-2 text-danger drop-shadow-[0_0_10px_rgba(239,68,68,0.3)]';
+                    }
                 }
             };
+
             wsConnection.onclose = () => {
                 const indicator = document.getElementById('ws-indicator');
                 indicator.classList.remove('bg-success', 'shadow-[0_0_8px_#10b981]');
                 indicator.classList.add('bg-danger', 'shadow-[0_0_8px_#ef4444]');
+                
+                // Connection tootne par auto-reconnect
+                setTimeout(connectWebSocket, 5000); 
             };
         }
 
+        // --- 🔴 PANIC EXIT ENGINE (CONNECTED TO BACKEND API) ---
         async function triggerExitAll() {
-            if(confirm("🚨 WARNING: This will immediately square off ALL positions! Proceed?")) {
-                alert("Exit command sent!");
+            if(confirm("🚨 WARNING: This will immediately square off ALL positions (Buys first, then Sells) via Buffered Limit orders. Proceed?")) {
+                const token = localStorage.getItem('saas_token');
+                const btn = document.getElementById('panic-btn');
+                const originalText = btn.innerHTML;
+                
+                btn.innerHTML = '<span class="loader border-white border-t-red-500 mr-2"></span> Processing...';
+                btn.disabled = true;
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/trades/exit-all`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await response.json();
+                    
+                    if(response.ok) {
+                        alert(data.message || "Positions squared off successfully.");
+                    } else {
+                        alert("Error: " + (data.detail || "Failed to exit positions."));
+                    }
+                } catch(err) {
+                    alert("Network Error: Failed to send Panic Exit command to server.");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
             }
         }
     </script>

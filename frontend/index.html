@@ -23,12 +23,11 @@
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
         .hidden { display: none !important; }
-        /* Loader Animation */
         .loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="min-h-screen flex flex-col relative">
 
     <div id="auth-section" class="flex-1 flex items-center justify-center p-4">
         <div class="bg-darkCard w-full max-w-md p-8 rounded-2xl shadow-2xl border border-slate-700 transition-all">
@@ -46,12 +45,10 @@
                     <label class="block text-sm text-slate-400 mb-2">Password</label>
                     <input type="password" id="login-password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="••••••••">
                 </div>
-                
                 <button type="submit" id="login-btn" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
                     <span>Secure Login</span>
                 </button>
                 <div id="login-error" class="text-danger text-sm text-center mt-3 hidden"></div>
-                
                 <div class="text-center mt-6">
                     <p class="text-sm text-slate-400">Don't have an account? <a href="#" onclick="toggleAuth('signup')" class="text-primary hover:underline font-bold">Sign Up</a></p>
                 </div>
@@ -74,13 +71,11 @@
                     <label class="block text-sm text-slate-400 mb-2">Password</label>
                     <input type="password" id="signup-password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors" placeholder="Create a strong password">
                 </div>
-                
                 <button type="submit" id="signup-btn" class="w-full bg-success hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
                     <span>Create Account</span>
                 </button>
                 <div id="signup-error" class="text-danger text-sm text-center mt-3 hidden"></div>
                 <div id="signup-success" class="text-success text-sm text-center mt-3 hidden">Account created! Please login.</div>
-                
                 <div class="text-center mt-6">
                     <p class="text-sm text-slate-400">Already have an account? <a href="#" onclick="toggleAuth('login')" class="text-primary hover:underline font-bold">Login</a></p>
                 </div>
@@ -117,8 +112,8 @@
                     <span>Kotak Neo</span>
                     <span id="kotak-status" class="text-sm px-2 py-1 bg-danger/20 text-danger rounded font-bold">Inactive</span>
                 </div>
-                <button onclick="alert('Broker connection page coming soon!')" class="w-full mt-3 bg-slate-700 hover:bg-slate-600 py-3 rounded-lg text-sm font-bold transition">
-                    Connect Kotak Neo
+                <button onclick="openKotakModal()" id="connect-kotak-btn" class="w-full mt-3 bg-slate-700 hover:bg-slate-600 py-3 rounded-lg text-sm font-bold transition">
+                    Configure Kotak Neo
                 </button>
             </div>
             
@@ -139,8 +134,59 @@
         </main>
     </div>
 
+    <div id="kotak-modal" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
+        <div class="bg-darkCard w-full max-w-md rounded-2xl border border-slate-700 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">🏦 Kotak Neo Setup</h3>
+                <button onclick="closeKotakModal()" class="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
+            </div>
+            
+            <form onsubmit="handleKotakConnect(event)">
+                <div class="mb-4">
+                    <label class="block text-xs text-slate-400 mb-1">Account Name</label>
+                    <input type="text" id="kotak-name" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="e.g. Omprakash Nath">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">UCC (Client Code)</label>
+                        <input type="text" id="kotak-ucc" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none uppercase" placeholder="ABCD123">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Mobile Number</label>
+                        <input type="tel" id="kotak-mobile" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="9876543210">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Trading Password</label>
+                        <input type="password" id="kotak-password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="••••••••">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">MPIN</label>
+                        <input type="password" id="kotak-mpin" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="123456">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs text-slate-400 mb-1">Consumer Key</label>
+                    <input type="text" id="kotak-consumer-key" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-xs text-slate-400 mb-1">Consumer Secret</label>
+                    <input type="password" id="kotak-consumer-secret" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none">
+                </div>
+                
+                <button type="submit" id="kotak-submit-btn" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
+                    <span>Connect API</span>
+                </button>
+                <div id="kotak-error" class="text-danger text-sm text-center mt-3 hidden"></div>
+            </form>
+        </div>
+    </div>
+
     <script>
-        // ✅ Live Render URLs
         const API_BASE_URL = "https://algosaas.onrender.com/api/v1"; 
         const WS_BASE_URL = "wss://algosaas.onrender.com/ws/live-data";
         
@@ -178,7 +224,7 @@
             return "Unknown error occurred";
         }
 
-        // 1. Handle Signup
+        // --- AUTH FUNCTIONS ---
         async function handleSignup(e) {
             e.preventDefault();
             const btn = document.getElementById('signup-btn');
@@ -220,8 +266,7 @@
                 btn.disabled = false;
             }
         }
-
-        // 2. Handle Login (Fixed to send JSON instead of URLSearchParams)
+        
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
@@ -234,7 +279,6 @@
             errorMsg.classList.add('hidden');
 
             try {
-                // Wapas JSON payload bhej rahe hain kyunki backend yahi chahta hai!
                 const response = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -254,7 +298,7 @@
                     errorMsg.classList.remove('hidden');
                 }
             } catch (err) {
-                errorMsg.innerText = "Server is waking up. Please wait a few seconds and try again.";
+                errorMsg.innerText = "Server error. Please try again.";
                 errorMsg.classList.remove('hidden');
             } finally {
                 btn.innerHTML = '<span>Secure Login</span>';
@@ -262,23 +306,29 @@
             }
         }
 
-        // 3. Switch to Dashboard UI
         function showDashboard(userName, kotakStatus) {
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('dashboard-section').classList.remove('hidden');
-            
             document.getElementById('welcome-msg').innerText = `Welcome, ${userName}`;
-            
-            const kStatusEl = document.getElementById('kotak-status');
-            if(kotakStatus === 'Active') {
-                kStatusEl.innerText = 'Active';
-                kStatusEl.className = 'text-sm px-2 py-1 bg-success/20 text-success rounded font-bold';
-            }
-
+            updateKotakUI(kotakStatus);
             connectWebSocket();
         }
 
-        // 4. Logout Function
+        function updateKotakUI(status) {
+            const kStatusEl = document.getElementById('kotak-status');
+            const kBtn = document.getElementById('connect-kotak-btn');
+            
+            if(status === 'Active') {
+                kStatusEl.innerText = 'Active';
+                kStatusEl.className = 'text-sm px-2 py-1 bg-success/20 text-success rounded font-bold';
+                kBtn.innerText = 'Update Kotak Neo Config';
+            } else {
+                kStatusEl.innerText = 'Inactive';
+                kStatusEl.className = 'text-sm px-2 py-1 bg-danger/20 text-danger rounded font-bold';
+                kBtn.innerText = 'Configure Kotak Neo';
+            }
+        }
+
         function logout() {
             localStorage.clear();
             if(wsConnection) wsConnection.close();
@@ -287,7 +337,6 @@
             toggleAuth('login'); 
         }
 
-        // 5. Connect to FastAPI WebSocket
         function connectWebSocket() {
             wsConnection = new WebSocket(`${WS_BASE_URL}/test_user`);
             
@@ -313,22 +362,80 @@
             };
         }
 
-        // 6. Trigger Safe Exit
         async function triggerExitAll() {
             if(confirm("🚨 WARNING: This will immediately square off ALL positions (Buys first, then Sells). Proceed?")) {
                 const token = localStorage.getItem('saas_token');
                 try {
                     const response = await fetch(`${API_BASE_URL}/trades/exit-all`, {
                         method: 'POST',
-                        headers: { 
-                            'Authorization': `Bearer ${token}`
-                        }
+                        headers: { 'Authorization': `Bearer ${token}` }
                     });
                     const data = await response.json();
                     alert(data.message || "Command sent to execution engine.");
                 } catch(err) {
                     alert("Failed to send exit command to server.");
                 }
+            }
+        }
+
+        // --- KOTAK NEO MODAL & API LOGIC ---
+        function openKotakModal() {
+            document.getElementById('kotak-modal').classList.remove('hidden');
+            document.getElementById('kotak-error').classList.add('hidden');
+        }
+
+        function closeKotakModal() {
+            document.getElementById('kotak-modal').classList.add('hidden');
+        }
+
+        async function handleKotakConnect(e) {
+            e.preventDefault();
+            const btn = document.getElementById('kotak-submit-btn');
+            const errorMsg = document.getElementById('kotak-error');
+            const token = localStorage.getItem('saas_token');
+
+            // Naye fields payload mein add kar diye
+            const payload = {
+                name: document.getElementById('kotak-name').value,
+                ucc: document.getElementById('kotak-ucc').value,
+                mobile: document.getElementById('kotak-mobile').value,
+                password: document.getElementById('kotak-password').value,
+                mpin: document.getElementById('kotak-mpin').value,
+                consumer_key: document.getElementById('kotak-consumer-key').value,
+                consumer_secret: document.getElementById('kotak-consumer-secret').value
+            };
+
+            btn.innerHTML = '<span class="loader"></span> Connecting...';
+            btn.disabled = true;
+            errorMsg.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/broker/kotak/setup`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if(response.ok) {
+                    alert("Kotak Neo Linked Successfully!");
+                    localStorage.setItem('saas_kotak', 'Active');
+                    updateKotakUI('Active');
+                    closeKotakModal();
+                } else {
+                    errorMsg.innerText = getErrorMessage(data.detail);
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorMsg.innerText = "Failed to connect to backend.";
+                errorMsg.classList.remove('hidden');
+            } finally {
+                btn.innerHTML = '<span>Connect API</span>';
+                btn.disabled = false;
             }
         }
     </script>

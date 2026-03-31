@@ -137,20 +137,15 @@
     <div id="kotak-modal" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
         <div class="bg-darkCard w-full max-w-md rounded-2xl border border-slate-700 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-white">🏦 Kotak Neo Setup</h3>
+                <h3 class="text-xl font-bold text-white">🏦 Kotak Neo Login</h3>
                 <button onclick="closeKotakModal()" class="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
             </div>
             
             <form onsubmit="handleKotakConnect(event)">
-                <div class="mb-4">
-                    <label class="block text-xs text-slate-400 mb-1">Account Name</label>
-                    <input type="text" id="kotak-name" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="e.g. Omprakash Nath">
-                </div>
-
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Mobile Number</label>
-                        <input type="tel" id="kotak-mobile" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="919876543210">
+                        <input type="tel" id="kotak-mobile" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="+91XXXXXXXXXX">
                     </div>
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">UCC (Client Code)</label>
@@ -158,19 +153,24 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">MPIN</label>
                         <input type="password" id="kotak-mpin" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="123456">
                     </div>
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1">Consumer Key</label>
-                        <input type="text" id="kotak-consumer-key" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="Enter Key">
+                        <label class="block text-xs text-slate-400 mb-1">TOTP</label>
+                        <input type="text" id="kotak-totp" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="6-digit code">
                     </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-xs text-slate-400 mb-1">Consumer Key</label>
+                    <input type="text" id="kotak-consumer-key" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="Enter API Key">
                 </div>
                 
                 <button type="submit" id="kotak-submit-btn" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
-                    <span>Connect API</span>
+                    <span>Connect Kotak Neo</span>
                 </button>
                 <div id="kotak-error" class="text-danger text-sm text-center mt-3 hidden"></div>
             </form>
@@ -215,7 +215,6 @@
             return "Unknown error occurred";
         }
 
-        // --- AUTH FUNCTIONS ---
         async function handleSignup(e) {
             e.preventDefault();
             const btn = document.getElementById('signup-btn');
@@ -373,6 +372,7 @@
         function openKotakModal() {
             document.getElementById('kotak-modal').classList.remove('hidden');
             document.getElementById('kotak-error').classList.add('hidden');
+            document.getElementById('kotak-totp').value = ''; // Har baar open karne pe TOTP khali aaye
         }
 
         function closeKotakModal() {
@@ -385,12 +385,12 @@
             const errorMsg = document.getElementById('kotak-error');
             const token = localStorage.getItem('saas_token');
 
-            // Sirf 5 exact fields bhej rahe hain
+            // ✅ Exact wahi payload jo aapka backend `KotakCredentials` mein maangta hai
             const payload = {
-                name: document.getElementById('kotak-name').value,
                 mobile: document.getElementById('kotak-mobile').value,
                 ucc: document.getElementById('kotak-ucc').value,
                 mpin: document.getElementById('kotak-mpin').value,
+                totp: document.getElementById('kotak-totp').value, // Naya TOTP Field
                 consumer_key: document.getElementById('kotak-consumer-key').value
             };
 
@@ -399,7 +399,8 @@
             errorMsg.classList.add('hidden');
 
             try {
-                const response = await fetch(`${API_BASE_URL}/broker/kotak/setup`, {
+                // ✅ NAYA URL: /broker/kotak-login
+                const response = await fetch(`${API_BASE_URL}/broker/kotak-login`, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
@@ -411,7 +412,7 @@
                 const data = await response.json();
 
                 if(response.ok) {
-                    alert("Kotak Neo Linked Successfully!");
+                    alert(data.message || "Kotak Neo Linked Successfully!");
                     localStorage.setItem('saas_kotak', 'Active');
                     updateKotakUI('Active');
                     closeKotakModal();
@@ -423,7 +424,7 @@
                 errorMsg.innerText = "Failed to connect to backend.";
                 errorMsg.classList.remove('hidden');
             } finally {
-                btn.innerHTML = '<span>Connect API</span>';
+                btn.innerHTML = '<span>Connect Kotak Neo</span>';
                 btn.disabled = false;
             }
         }

@@ -95,7 +95,9 @@
                         <span id="ws-indicator" class="w-2.5 h-2.5 bg-danger rounded-full shadow-[0_0_8px_#ef4444]"></span>
                         <span class="text-xs text-slate-400">Live API</span>
                     </div>
-                    <button onclick="logout()" class="text-xs border border-slate-600 px-3 py-1.5 rounded-md hover:bg-slate-700 transition">Logout</button>
+                    <button onclick="logout()" class="text-xs bg-red-500/10 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-md hover:bg-red-500 hover:text-white transition font-bold">
+                        Logout
+                    </button>
                 </div>
             </div>
         </header>
@@ -141,7 +143,12 @@
                 <button onclick="closeKotakModal()" class="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
             </div>
             
-            <form onsubmit="handleKotakConnect(event)">
+            <form id="kotak-full-form" onsubmit="handleKotakConnect(event)">
+                <div class="mb-4">
+                    <label class="block text-xs text-slate-400 mb-1">Account Name</label>
+                    <input type="text" id="kotak-name" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="Omprakash Nath">
+                </div>
+
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Mobile Number</label>
@@ -160,7 +167,7 @@
                     </div>
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">TOTP</label>
-                        <input type="text" id="kotak-totp" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="6-digit code">
+                        <input type="text" id="kotak-full-totp" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="6-digit code">
                     </div>
                 </div>
 
@@ -170,10 +177,31 @@
                 </div>
                 
                 <button type="submit" id="kotak-submit-btn" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
-                    <span>Connect Kotak Neo</span>
+                    <span>Connect & Save Info</span>
                 </button>
-                <div id="kotak-error" class="text-danger text-sm text-center mt-3 hidden"></div>
             </form>
+
+            <form id="kotak-totp-form" class="hidden" onsubmit="handleKotakTotpOnly(event)">
+                <div class="bg-success/10 border border-success/30 p-3 rounded-lg mb-6 text-center">
+                    <p class="text-sm text-success font-semibold">✅ Broker Profile Saved</p>
+                    <p class="text-xs text-slate-400 mt-1">Just enter your daily TOTP to connect.</p>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-xs text-slate-400 mb-1">Today's TOTP Code</label>
+                    <input type="text" id="kotak-quick-totp" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-4 text-center text-white text-2xl tracking-widest focus:border-primary outline-none" placeholder="------" maxlength="6">
+                </div>
+                
+                <button type="submit" id="kotak-totp-btn" class="w-full bg-success hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
+                    <span>Start Live Trading</span>
+                </button>
+                
+                <div class="text-center mt-4">
+                    <button type="button" onclick="resetKotakProfile()" class="text-xs text-slate-500 hover:text-danger underline">Use different Kotak account</button>
+                </div>
+            </form>
+
+            <div id="kotak-error" class="text-danger text-sm text-center mt-3 hidden"></div>
         </div>
     </div>
 
@@ -209,22 +237,23 @@
         function getErrorMessage(detail) {
             if (!detail) return "Server error occurred!";
             if (typeof detail === 'string') return detail;
-            if (Array.isArray(detail)) {
-                return detail.map(err => `${err.loc[err.loc.length - 1]}: ${err.msg}`).join(' | ');
-            }
+            if (Array.isArray(detail)) return detail.map(err => `${err.loc[err.loc.length - 1]}: ${err.msg}`).join(' | ');
             return "Unknown error occurred";
         }
 
+        // --- 1. SIGNUP & LOGIN ---
         async function handleSignup(e) {
             e.preventDefault();
             const btn = document.getElementById('signup-btn');
             const errorMsg = document.getElementById('signup-error');
             const successMsg = document.getElementById('signup-success');
             
-            const name = document.getElementById('signup-name').value;
-            const mobile = document.getElementById('signup-mobile').value; 
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
+            const payload = {
+                full_name: document.getElementById('signup-name').value,
+                email: document.getElementById('signup-email').value,
+                mobile: document.getElementById('signup-mobile').value,
+                password: document.getElementById('signup-password').value
+            };
 
             btn.innerHTML = '<span class="loader"></span> Creating...';
             btn.disabled = true;
@@ -235,11 +264,9 @@
                 const response = await fetch(`${API_BASE_URL}/auth/signup`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ full_name: name, email: email, mobile: mobile, password: password })
+                    body: JSON.stringify(payload)
                 });
-
                 const data = await response.json();
-
                 if(response.ok) {
                     successMsg.classList.remove('hidden');
                     document.getElementById('signup-form').reset();
@@ -249,7 +276,7 @@
                     errorMsg.classList.remove('hidden');
                 }
             } catch (err) {
-                errorMsg.innerText = "Server is sleeping or offline. Please wait 1 minute and try again.";
+                errorMsg.innerText = "Server is sleeping or offline.";
                 errorMsg.classList.remove('hidden');
             } finally {
                 btn.innerHTML = '<span>Create Account</span>';
@@ -261,8 +288,6 @@
             e.preventDefault();
             const btn = document.getElementById('login-btn');
             const errorMsg = document.getElementById('login-error');
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
 
             btn.innerHTML = '<span class="loader"></span> Authenticating...';
             btn.disabled = true;
@@ -272,7 +297,10 @@
                 const response = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, password: password })
+                    body: JSON.stringify({ 
+                        email: document.getElementById('login-email').value, 
+                        password: document.getElementById('login-password').value 
+                    })
                 });
 
                 const data = await response.json();
@@ -309,110 +337,93 @@
             const kBtn = document.getElementById('connect-kotak-btn');
             
             if(status === 'Active') {
-                kStatusEl.innerText = 'Active';
+                kStatusEl.innerText = 'Connected 🟢';
                 kStatusEl.className = 'text-sm px-2 py-1 bg-success/20 text-success rounded font-bold';
-                kBtn.innerText = 'Update Kotak Neo Config';
+                kBtn.innerText = 'Start Daily Session (TOTP)';
+                kBtn.className = 'w-full mt-3 bg-success hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold transition';
             } else {
-                kStatusEl.innerText = 'Inactive';
+                kStatusEl.innerText = 'Not Saved 🔴';
                 kStatusEl.className = 'text-sm px-2 py-1 bg-danger/20 text-danger rounded font-bold';
-                kBtn.innerText = 'Configure Kotak Neo';
+                kBtn.innerText = 'Setup Kotak Neo';
+                kBtn.className = 'w-full mt-3 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg text-sm font-bold transition';
             }
         }
 
+        // --- 2. LOGOUT LOGIC ---
         function logout() {
-            localStorage.clear();
-            if(wsConnection) wsConnection.close();
-            document.getElementById('auth-section').classList.remove('hidden');
-            document.getElementById('dashboard-section').classList.add('hidden');
-            toggleAuth('login'); 
-        }
-
-        function connectWebSocket() {
-            wsConnection = new WebSocket(`${WS_BASE_URL}/test_user`);
-            
-            wsConnection.onopen = () => {
-                const indicator = document.getElementById('ws-indicator');
-                indicator.classList.remove('bg-danger', 'shadow-[0_0_8px_#ef4444]');
-                indicator.classList.add('bg-success', 'shadow-[0_0_8px_#10b981]');
-            };
-
-            wsConnection.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if(data.pnl !== undefined) {
-                    const pnlEl = document.getElementById('live-pnl');
-                    pnlEl.innerText = `${data.pnl >= 0 ? '+' : ''} ₹${data.pnl.toFixed(2)}`;
-                    pnlEl.className = `text-4xl font-bold mt-2 ${data.pnl >= 0 ? 'text-success' : 'text-danger'}`;
-                }
-            };
-
-            wsConnection.onclose = () => {
-                const indicator = document.getElementById('ws-indicator');
-                indicator.classList.remove('bg-success', 'shadow-[0_0_8px_#10b981]');
-                indicator.classList.add('bg-danger', 'shadow-[0_0_8px_#ef4444]');
-            };
-        }
-
-        async function triggerExitAll() {
-            if(confirm("🚨 WARNING: This will immediately square off ALL positions (Buys first, then Sells). Proceed?")) {
-                const token = localStorage.getItem('saas_token');
-                try {
-                    const response = await fetch(`${API_BASE_URL}/trades/exit-all`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    const data = await response.json();
-                    alert(data.message || "Command sent to execution engine.");
-                } catch(err) {
-                    alert("Failed to send exit command to server.");
-                }
+            if(confirm("Are you sure you want to logout?")) {
+                localStorage.clear();
+                if(wsConnection) wsConnection.close();
+                document.getElementById('auth-section').classList.remove('hidden');
+                document.getElementById('dashboard-section').classList.add('hidden');
+                document.getElementById('login-password').value = ''; // clear password
+                toggleAuth('login'); 
             }
         }
 
-        // --- KOTAK NEO MODAL & API LOGIC ---
+        // --- 3. KOTAK SMART MODAL LOGIC ---
         function openKotakModal() {
             document.getElementById('kotak-modal').classList.remove('hidden');
             document.getElementById('kotak-error').classList.add('hidden');
-            document.getElementById('kotak-totp').value = ''; // Har baar open karne pe TOTP khali aaye
+            
+            const isSaved = localStorage.getItem('saas_kotak') === 'Active';
+            
+            if (isSaved) {
+                // Agar data saved hai, toh sirf TOTP wala view dikhao
+                document.getElementById('kotak-full-form').classList.add('hidden');
+                document.getElementById('kotak-totp-form').classList.remove('hidden');
+                document.getElementById('kotak-quick-totp').value = ''; 
+            } else {
+                // Agar naya user hai, toh full form dikhao
+                document.getElementById('kotak-full-form').classList.remove('hidden');
+                document.getElementById('kotak-totp-form').classList.add('hidden');
+                document.getElementById('kotak-full-totp').value = '';
+            }
         }
 
         function closeKotakModal() {
             document.getElementById('kotak-modal').classList.add('hidden');
         }
 
+        function resetKotakProfile() {
+            if(confirm("This will clear your saved broker details. Are you sure?")) {
+                localStorage.setItem('saas_kotak', 'Inactive');
+                updateKotakUI('Inactive');
+                openKotakModal(); // Reload the modal to show full form
+            }
+        }
+
+        // --- SCENARIO A: First Time Setup (Full Form) ---
         async function handleKotakConnect(e) {
             e.preventDefault();
             const btn = document.getElementById('kotak-submit-btn');
             const errorMsg = document.getElementById('kotak-error');
             const token = localStorage.getItem('saas_token');
 
-            // ✅ Exact wahi payload jo aapka backend `KotakCredentials` mein maangta hai
             const payload = {
+                name: document.getElementById('kotak-name').value,
                 mobile: document.getElementById('kotak-mobile').value,
                 ucc: document.getElementById('kotak-ucc').value,
                 mpin: document.getElementById('kotak-mpin').value,
-                totp: document.getElementById('kotak-totp').value, // Naya TOTP Field
+                totp: document.getElementById('kotak-full-totp').value,
                 consumer_key: document.getElementById('kotak-consumer-key').value
             };
 
-            btn.innerHTML = '<span class="loader"></span> Connecting...';
+            btn.innerHTML = '<span class="loader"></span> Saving...';
             btn.disabled = true;
             errorMsg.classList.add('hidden');
 
             try {
-                // ✅ NAYA URL: /broker/kotak-login
+                // API to save FULL data
                 const response = await fetch(`${API_BASE_URL}/broker/kotak-login`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(payload)
                 });
-
                 const data = await response.json();
 
                 if(response.ok) {
-                    alert(data.message || "Kotak Neo Linked Successfully!");
+                    alert("Profile Saved & Connected!");
                     localStorage.setItem('saas_kotak', 'Active');
                     updateKotakUI('Active');
                     closeKotakModal();
@@ -421,11 +432,79 @@
                     errorMsg.classList.remove('hidden');
                 }
             } catch (err) {
-                errorMsg.innerText = "Failed to connect to backend.";
+                errorMsg.innerText = "Network error.";
                 errorMsg.classList.remove('hidden');
             } finally {
-                btn.innerHTML = '<span>Connect Kotak Neo</span>';
+                btn.innerHTML = '<span>Connect & Save Info</span>';
                 btn.disabled = false;
+            }
+        }
+
+        // --- SCENARIO B: Returning User (Only TOTP) ---
+        async function handleKotakTotpOnly(e) {
+            e.preventDefault();
+            const btn = document.getElementById('kotak-totp-btn');
+            const errorMsg = document.getElementById('kotak-error');
+            const token = localStorage.getItem('saas_token');
+            const totpVal = document.getElementById('kotak-quick-totp').value;
+
+            btn.innerHTML = '<span class="loader"></span> Starting...';
+            btn.disabled = true;
+            errorMsg.classList.add('hidden');
+
+            try {
+                // NOTE: Jab backend mein naya route ban jayega `/broker/kotak-totp-login`, 
+                // tab wo automatically user database se mobile/UCC nikal lega aur bas ye TOTP verify karega.
+                const response = await fetch(`${API_BASE_URL}/broker/kotak-totp-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ totp: totpVal })
+                });
+                
+                const data = await response.json();
+
+                if(response.ok) {
+                    alert("Live Trading Session Started! 🟢");
+                    closeKotakModal();
+                } else {
+                    errorMsg.innerText = getErrorMessage(data.detail);
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorMsg.innerText = "Network error. Make sure backend supports TOTP-only login.";
+                errorMsg.classList.remove('hidden');
+            } finally {
+                btn.innerHTML = '<span>Start Live Trading</span>';
+                btn.disabled = false;
+            }
+        }
+
+        // --- WEBSOCKETS (Dummy logic for now) ---
+        function connectWebSocket() {
+            wsConnection = new WebSocket(`${WS_BASE_URL}/test_user`);
+            wsConnection.onopen = () => {
+                const indicator = document.getElementById('ws-indicator');
+                indicator.classList.remove('bg-danger', 'shadow-[0_0_8px_#ef4444]');
+                indicator.classList.add('bg-success', 'shadow-[0_0_8px_#10b981]');
+            };
+            wsConnection.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if(data.pnl !== undefined) {
+                    const pnlEl = document.getElementById('live-pnl');
+                    pnlEl.innerText = `${data.pnl >= 0 ? '+' : ''} ₹${data.pnl.toFixed(2)}`;
+                    pnlEl.className = `text-4xl font-bold mt-2 ${data.pnl >= 0 ? 'text-success' : 'text-danger'}`;
+                }
+            };
+            wsConnection.onclose = () => {
+                const indicator = document.getElementById('ws-indicator');
+                indicator.classList.remove('bg-success', 'shadow-[0_0_8px_#10b981]');
+                indicator.classList.add('bg-danger', 'shadow-[0_0_8px_#ef4444]');
+            };
+        }
+
+        async function triggerExitAll() {
+            if(confirm("🚨 WARNING: This will immediately square off ALL positions! Proceed?")) {
+                alert("Exit command sent!");
             }
         }
     </script>

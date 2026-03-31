@@ -4,7 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
 from app.engine.scheduler import start_scheduler
-from app.websockets.stream import manager
+
+# ✅ Purane 'manager' ki jagah Naya Live P&L engine import kiya
+from app.websockets.stream import stream_live_pnl
 
 # 📦 Saare Routers Import Karein
 from app.api.v1 import auth, broker, trades, market, strategy
@@ -43,16 +45,12 @@ app.include_router(market.router, prefix=f"{settings.API_V1_STR}/market", tags=[
 app.include_router(strategy.router, prefix=f"{settings.API_V1_STR}/strategy", tags=["Strategy Builder"])
 
 # --- 📡 WEBSOCKET ROUTE (For Live Data) ---
-@app.websocket("/ws/live-data/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await manager.connect(websocket, user_id)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text("pong")
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
+# ✅ Route update kiya. Ab URL mein ID nahi, Token aayega security aur sahi connection ke liye.
+@app.websocket("/ws/live-data")
+async def websocket_endpoint(websocket: WebSocket, token: str):
+    await websocket.accept()
+    # P&L calculation ka saara load ab stream.py handle karega
+    await stream_live_pnl(websocket, token)
 
 # --- 🩺 HEALTH CHECK ROUTE ---
 @app.get("/")

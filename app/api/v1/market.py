@@ -2,26 +2,30 @@ from fastapi import APIRouter, HTTPException, Depends
 from neo_api_client import NeoAPI
 from app.api.deps import get_current_user
 from app.core.database import get_collection
-from app.core.sessions import KOTAK_SESSIONS  # 🟢 MEMORY IMPORT KI
 import pandas as pd
 from datetime import datetime, timedelta
 
 router = APIRouter()
 
 INDICES_CONFIG = {
-    "NIFTY": {"Exchange": "nse_fo", "SpotToken": "NIFTY50", "SpotExch": "nse_cm", "Gap": 50},
+    "NIFTY": {"Exchange": "nse_fo", "SpotToken": "256265", "SpotExch": "nse_cm", "Gap": 50},
     "BANKNIFTY": {"Exchange": "nse_fo", "SpotToken": "26000", "SpotExch": "nse_cm", "Gap": 100},
     "SENSEX": {"Exchange": "bse_fo", "SpotToken": "1", "SpotExch": "bse_cm", "Gap": 100}
 }
 
-# 🟢 THE REAL FIX
+# 🟢 THE MASTER STROKE: DB Se Token utha kar client zinda karna
 def get_kotak_client(db_user: dict):
-    user_id = db_user.get("id")
-    if user_id not in KOTAK_SESSIONS:
-        # Agar memory mein login nahi mila toh yeh error frontend par laal dabbe mein aayega
-        raise Exception("Kotak Live Session is OFF! Kripya Dashboard par jakar 'Start Daily Session' (TOTP) karein.")
+    token = db_user.get("kotak_bearer_token")
+    if not token:
+        raise Exception("Access Token not found in Database. Please do TOTP Login again.")
     
-    return KOTAK_SESSIONS[user_id] # Pura logged-in client return karega
+    # Naya client banao
+    client = NeoAPI(consumer_key=db_user["kotak_consumer_key"], environment='prod')
+    
+    # DB wala token client mein inject kar do!
+    client.bearer_token = token
+    client.access_token = token # Safe side dono set kar diye
+    return client
 
 
 @router.get("/option-chain")
@@ -29,19 +33,24 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
     try:
         users_col = get_collection("users")
         db_user = await users_col.find_one({"id": current_user["id"]})
-        
-        if not db_user or db_user.get("kotak_status") != "Active":
-            raise Exception("Broker profile not connected. Setup Kotak Neo first.")
+        if not db_user or db_user.get("kotak_status") != "Active": raise Exception("Setup Kotak Neo first.")
 
-        client = get_kotak_client(db_user) # 🟢 MEMORY WALA CLIENT
+        # Client automatically token le aayega
+        client = get_kotak_client(db_user) 
         conf = INDICES_CONFIG.get(symbol)
 
-        spot_resp = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
+        try:
+            spot_resp = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
+        except TypeError as te:
+            if "NoneType" in str(te):
+                raise Exception("Aapka Access Token expire ho gaya hai. Kripya naya TOTP daalein!")
+            raise te
+
         spot_price = 0.0
         if spot_resp and isinstance(spot_resp, dict) and 'data' in spot_resp:
             spot_price = float(spot_resp['data'][0].get('ltp', spot_resp['data'][0].get('lastPrice', 0)))
 
-        if spot_price == 0: raise Exception("Kotak API ne Spot Price 0 diya. TOTP expire ho sakta hai.")
+        if spot_price == 0: raise Exception("Kotak API ne Spot Price 0 diya. Token invalid ho gaya hai.")
 
         gap = conf["Gap"]
         atm = round(spot_price / gap) * gap
@@ -50,9 +59,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         fo_master_col = get_collection("fo_master")
         cursor = await fo_master_col.find({"IndexName": symbol}).to_list(length=None)
         df = pd.DataFrame(cursor)
-        
-        if df.empty or "7" not in df.columns.astype(str):
-            raise Exception("MongoDB Master Data is empty. Please run the script.")
+        if df.empty or "7" not in df.columns.astype(str): raise Exception("MongoDB Master Data empty.")
 
         df.columns = df.columns.astype(str)
         now = datetime.now()
@@ -98,5 +105,4 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         return {"status": "success", "symbol": symbol, "expiry": nearest_expiry, "spot_price": spot_price, "data": chain_data, "is_dummy": False}
 
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))

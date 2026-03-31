@@ -3,21 +3,17 @@ from datetime import datetime, timedelta
 import pytz
 import asyncio
 import pandas as pd
-import os
-import time
-import requests
 from neo_api_client import NeoAPI
 
 from app.core.database import get_collection
 
 # --- ⚙️ CONFIGURATION ---
 INDICES_CONFIG = {
-    "NIFTY": {"Exchange": "nse_fo", "LotSize": 65, "StrikeGap": 50, "Master": "nse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/nse_fo"},
-    "BANKNIFTY": {"Exchange": "nse_fo", "LotSize": 15, "StrikeGap": 100, "Master": "nse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/nse_fo"},
-    "SENSEX": {"Exchange": "bse_fo", "LotSize": 20, "StrikeGap": 100, "Master": "bse_fo_master.csv", "Url": "https://lapi.kotaksecurities.com/wso2-scrip-master/api/v1/scrip-master/csv/bse_fo"}
+    "NIFTY": {"Exchange": "nse_fo", "LotSize": 65, "StrikeGap": 50, "SpotToken": "NIFTY50", "SpotExch": "nse_cm"},
+    "BANKNIFTY": {"Exchange": "nse_fo", "LotSize": 15, "StrikeGap": 100, "SpotToken": "26000", "SpotExch": "nse_cm"},
+    "SENSEX": {"Exchange": "bse_fo", "LotSize": 20, "StrikeGap": 100, "SpotToken": "1", "SpotExch": "bse_cm"}
 }
 
-# --- 🛠️ HELPERS ---
 def get_kotak_client(db_user):
     try:
         return NeoAPI(consumer_key=db_user["kotak_consumer_key"], environment='prod')
@@ -25,10 +21,9 @@ def get_kotak_client(db_user):
         return None
 
 def get_live_spot(client, index_name):
-    tokens = {"NIFTY": "256265", "BANKNIFTY": "26000", "SENSEX": "1"}
-    exch = "bse_cm" if index_name == "SENSEX" else "nse_cm"
+    conf = INDICES_CONFIG.get(index_name)
     try:
-        q = client.quotes(instrument_tokens=[{"instrument_token": tokens[index_name], "exchange_segment": exch}], quote_type="all")
+        q = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
         if q and isinstance(q, dict) and 'data' in q: return float(q['data'][0].get('ltp', 0))
     except: pass
     return 0.0
@@ -40,20 +35,8 @@ def get_option_ltp(client, token, exch):
     except: pass
     return 0.0
 
-def get_master_csv(conf):
-    file_path = conf["Master"]
-    if not os.path.exists(file_path) or (time.time() - os.path.getmtime(file_path) > 86400):
-        try:
-            r = requests.get(conf["Url"])
-            with open(file_path, 'wb') as f: f.write(r.content)
-        except Exception as e:
-            print(f"CSV Download Error: {e}")
-    return pd.read_csv(file_path, sep=',', header=None, low_memory=False)
-
-# --- 🧠 SMART STRIKE CALCULATOR ---
 def calculate_dynamic_strike(client, index, underlying, opt_type, criteria, target_value):
     conf = INDICES_CONFIG[index]
-    
     base_price = get_live_spot(client, index)
     if base_price == 0: return None
 
@@ -66,7 +49,6 @@ def calculate_dynamic_strike(client, index, underlying, opt_type, criteria, targ
             shift_multiplier = int(target_value.replace("ITM", ""))
             if opt_type == "CE": final_strike = atm - (shift_multiplier * conf["StrikeGap"])
             else: final_strike = atm + (shift_multiplier * conf["StrikeGap"])
-        
         elif "OTM" in target_value:
             shift_multiplier = int(target_value.replace("OTM", ""))
             if opt_type == "CE": final_strike = atm + (shift_multiplier * conf["StrikeGap"])
@@ -76,7 +58,7 @@ def calculate_dynamic_strike(client, index, underlying, opt_type, criteria, targ
 
 
 # ==========================================
-# 🚀 CORE ENGINE: DUAL ALGO TRADER (PAPER + REAL)
+# 🚀 CORE ENGINE: DUAL ALGO TRADER
 # ==========================================
 async def check_and_execute_strategies():
     tz = pytz.timezone('Asia/Kolkata')
@@ -84,13 +66,11 @@ async def check_and_execute_strategies():
     current_time = now.strftime("%H:%M")
     current_date = now.strftime("%Y-%m-%d")
 
-    # Weekend / Off-market check
-    # if now.weekday() >= 5 or current_time < "09:15" or current_time > "15:30": return
-
     try:
         strat_col = get_collection("strategies")
         users_col = get_collection("users")
-        paper_col = get_collection("paper_trades") # 🟢 Naya Paper DB
+        paper_col = get_collection("paper_trades")
+        fo_master_col = get_collection("fo_master") # 🚀 DB Fetch
 
         active_strats = await strat_col.find({"is_active": True}).to_list(length=1000)
 
@@ -98,7 +78,7 @@ async def check_and_execute_strategies():
             strat_id = strat.get("strategy_id")
             user_id = strat.get("user_id")
             status = strat.get("status", "WAITING")
-            mode = strat.get("executionMode", "PAPER") # 🟢 Mode Check
+            mode = strat.get("executionMode", "PAPER")
             
             db_user = await users_col.find_one({"id": user_id})
             if not db_user or db_user.get("kotak_status") != "Active": continue
@@ -115,9 +95,16 @@ async def check_and_execute_strategies():
                 
                 index_name = strat["index"]
                 conf = INDICES_CONFIG[index_name]
-                df = get_master_csv(conf)
-
-                all_ref_keys = set(df[7].astype(str).values)
+                
+                # 🚀 FAST DB LOOKUP
+                cursor = await fo_master_col.find({"IndexName": index_name}).to_list(length=None)
+                df = pd.DataFrame(cursor)
+                if df.empty:
+                    print(f"❌ Master DB Empty for {index_name}")
+                    continue
+                
+                df.columns = df.columns.astype(str)
+                all_ref_keys = set(df["7"].astype(str).values)
                 expiries_found = []
                 for i in range(0, 45):
                     test_date = now + timedelta(days=i)
@@ -129,7 +116,6 @@ async def check_and_execute_strategies():
 
                 executed_virtual_legs = []
 
-                # Execute Legs
                 for leg in strat.get("legs", []):
                     strike = calculate_dynamic_strike(
                         client, index_name, strat["underlying"], 
@@ -140,102 +126,63 @@ async def check_and_execute_strategies():
                     exp_idx = 0 
                     if leg["expiry"] == "Next Weekly" and len(expiries_found) > 1: exp_idx = 1
                     elif leg["expiry"] == "Monthly" and len(expiries_found) > 3: exp_idx = 3 
-                    elif leg["expiry"] == "Next Monthly" and len(expiries_found) > 4: exp_idx = 4
                     
                     expiry_str = expiries_found[exp_idx] if expiries_found else now.strftime("%d%b%y").upper()
 
-                    symbol_search = f"{index_name}{expiry_str}{strike}.00{leg['optType']}"
+                    sym1 = f"{index_name}{expiry_str}{strike}.00{leg['optType']}"
+                    sym2 = f"{index_name}{expiry_str}{int(strike)}{leg['optType']}"
                     
-                    matched_row = df[df[7] == symbol_search]
-                    if matched_row.empty:
-                        symbol_search = f"{index_name}{expiry_str}{int(strike)}{leg['optType']}"
-                        matched_row = df[df[7] == symbol_search]
+                    matched_row = df[(df["7"] == sym1) | (df["7"] == sym2)]
 
                     qty = int(leg["lot"]) * conf["LotSize"]
                     transaction = "B" if leg["position"] == "Buy" else "S"
                     
-                    # Token nikalo taaki live price mil sake
-                    token = str(int(matched_row.iloc[0, 0])) if not matched_row.empty else None
+                    token = str(int(float(matched_row.iloc[0]["0"]))) if not matched_row.empty else None
+                    symbol_search = matched_row.iloc[0]["5"] if not matched_row.empty else sym1
 
-                    # 📝 PAPER TRADE LOGIC
+                    # 📝 PAPER LOGIC
                     if mode == "PAPER":
                         ltp = get_option_ltp(client, token, conf["Exchange"]) if token else 0.0
                         executed_virtual_legs.append({
-                            "leg_id": leg["id"],
-                            "symbol": symbol_search,
-                            "token": token,
-                            "transaction": transaction,
-                            "qty": qty,
-                            "entry_price": ltp,
-                            "status": "OPEN"
+                            "leg_id": leg["id"], "symbol": symbol_search, "token": token,
+                            "transaction": transaction, "qty": qty, "entry_price": ltp, "status": "OPEN"
                         })
                         print(f"📝 Paper Saved: {transaction} {qty} x {symbol_search} @ ₹{ltp}")
 
-                    # 💸 REAL TRADE LOGIC
+                    # 💸 REAL LOGIC
                     elif mode == "REAL":
                         try:
-                            # HINT: Live platform pe real money jayega yahan se!
-                            '''
-                            client.place_order(
-                                exchange_segment=conf["Exchange"], product="NRML", price="0", 
-                                order_type="MKT", quantity=str(qty), validity="DAY", 
-                                trading_symbol=symbol_search, transaction_type=transaction, amo="NO"
-                            )
-                            '''
+                            # client.place_order(exchange_segment=conf["Exchange"], product="NRML", price="0", order_type="MKT", quantity=str(qty), validity="DAY", trading_symbol=symbol_search, transaction_type=transaction, amo="NO")
                             print(f"✅ Real Fired: {transaction} {qty} x {symbol_search}")
                         except Exception as e:
                             print(f"❌ Real Order Failed: {e}")
-                            
-                    time.sleep(0.2) # API block na ho isliye delay
 
-                # Agar Paper mode tha toh poori strategy ko database mein save kar do
                 if mode == "PAPER" and executed_virtual_legs:
-                    paper_trade_record = {
-                        "strategy_id": strat_id,
-                        "user_id": user_id,
-                        "entry_time": current_time,
-                        "entry_date": current_date,
-                        "status": "OPEN",
-                        "legs": executed_virtual_legs
-                    }
-                    await paper_col.insert_one(paper_trade_record)
+                    await paper_col.insert_one({
+                        "strategy_id": strat_id, "user_id": user_id, "entry_time": current_time,
+                        "entry_date": current_date, "status": "OPEN", "legs": executed_virtual_legs
+                    })
 
-                # Update Status to ENTERED (Dono modes ke liye)
                 await strat_col.update_one({"strategy_id": strat_id}, {"$set": {"status": "ENTERED"}})
-
 
             # ==========================================
             # 🔴 2. EXIT LOGIC
             # ==========================================
             elif status == "ENTERED":
                 should_exit = False
-                
                 if strat.get("type") == "Intraday" and current_time >= strat.get("exitTime"): should_exit = True
                 elif strat.get("type") == "Positional" and current_date >= strat.get("exitDate") and current_time >= strat.get("exitTime"): should_exit = True
 
                 if should_exit:
                     print(f"🚨 [{mode} EXIT FIRE] Strategy {strat_id} Exiting!")
-                    
                     if mode == "PAPER":
-                        # Mark virtual trades as CLOSED
-                        await paper_col.update_many(
-                            {"strategy_id": strat_id, "status": "OPEN"},
-                            {"$set": {"status": "CLOSED", "exit_time": current_time, "exit_date": current_date}}
-                        )
-                    elif mode == "REAL":
-                        # Real exit logic yahan aayega (Panic exit jaisa)
-                        pass
-                        
+                        await paper_col.update_many({"strategy_id": strat_id, "status": "OPEN"}, {"$set": {"status": "CLOSED", "exit_time": current_time}})
                     await strat_col.update_one({"strategy_id": strat_id}, {"$set": {"status": "COMPLETED", "is_active": False}})
 
     except Exception as e:
         print(f"❌ Scheduler Error: {e}")
 
-# ==========================================
-# ⏰ SCHEDULER START
-# ==========================================
 def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=pytz.timezone('Asia/Kolkata'))
     scheduler.add_job(check_and_execute_strategies, 'cron', second='0')
     scheduler.start()
-    print("🤖 AlgoSaaS Pro - Dual AI Engine Connected & Running!")

@@ -90,14 +90,19 @@
                     <h2 class="text-xl font-bold text-primary">⚡ AlgoSaaS</h2>
                     <p class="text-xs text-slate-400" id="welcome-msg">Welcome, User</p>
                 </div>
-                <div class="flex items-center gap-3">
+                
+                <div class="flex flex-col items-end gap-2">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-600">
+                            <button id="btn-mode-paper" onclick="setTradeMode('PAPER')" class="px-3 py-1 text-xs font-bold rounded bg-orange-500 text-white shadow-md transition-all">📝 Paper</button>
+                            <button id="btn-mode-real" onclick="setTradeMode('REAL')" class="px-3 py-1 text-xs font-bold rounded text-slate-400 hover:text-white transition-all">💸 Real</button>
+                        </div>
+                        <button onclick="logout()" class="text-xs bg-red-500/10 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-md hover:bg-red-500 hover:text-white transition font-bold">Logout</button>
+                    </div>
                     <div class="flex items-center gap-2">
                         <span id="ws-indicator" class="w-2.5 h-2.5 bg-danger rounded-full shadow-[0_0_8px_#ef4444]"></span>
-                        <span class="text-xs text-slate-400">Live API</span>
+                        <span id="mode-text" class="text-[10px] text-orange-400 uppercase tracking-widest font-bold">PAPER MODE</span>
                     </div>
-                    <button onclick="logout()" class="text-xs bg-red-500/10 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-md hover:bg-red-500 hover:text-white transition font-bold">
-                        Logout
-                    </button>
                 </div>
             </div>
         </header>
@@ -211,7 +216,37 @@
         
         let wsConnection = null;
 
+        // --- 📝 PAPER / REAL MODE SWITCHER ---
+        function setTradeMode(mode, isInit = false) {
+            const btnPaper = document.getElementById('btn-mode-paper');
+            const btnReal = document.getElementById('btn-mode-real');
+            const modeText = document.getElementById('mode-text');
+
+            if (mode === 'REAL') {
+                if (!isInit) {
+                    if(!confirm("⚠️ WARNING: You are switching to REAL trading mode. Real orders will be fired to Kotak Neo. Are you sure?")) {
+                        setTradeMode('PAPER'); 
+                        return;
+                    }
+                }
+                localStorage.setItem('trade_mode', 'REAL');
+                btnReal.className = "px-3 py-1 text-xs font-bold rounded bg-success text-white shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-all";
+                btnPaper.className = "px-3 py-1 text-xs font-bold rounded text-slate-400 hover:text-white transition-all";
+                modeText.innerText = "REAL MODE";
+                modeText.className = "text-[10px] text-success uppercase tracking-widest font-bold";
+            } else {
+                localStorage.setItem('trade_mode', 'PAPER');
+                btnPaper.className = "px-3 py-1 text-xs font-bold rounded bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.4)] transition-all";
+                btnReal.className = "px-3 py-1 text-xs font-bold rounded text-slate-400 hover:text-white transition-all";
+                modeText.innerText = "PAPER MODE";
+                modeText.className = "text-[10px] text-orange-400 uppercase tracking-widest font-bold";
+            }
+        }
+
         window.onload = () => {
+            const savedMode = localStorage.getItem('trade_mode') || 'PAPER';
+            setTradeMode(savedMode, true); // true = Init on load, skips confirm dialog
+
             const token = localStorage.getItem('saas_token');
             if(token) {
                 showDashboard(localStorage.getItem('saas_user'), localStorage.getItem('saas_kotak'));
@@ -330,7 +365,7 @@
             document.getElementById('dashboard-section').classList.remove('hidden');
             document.getElementById('welcome-msg').innerText = `Welcome, ${userName}`;
             updateKotakUI(kotakStatus);
-            connectWebSocket(); // WebSocket ab sahi token se connect hoga
+            connectWebSocket();
         }
 
         function updateKotakUI(status) {
@@ -352,7 +387,10 @@
 
         function logout() {
             if(confirm("Are you sure you want to logout?")) {
-                localStorage.clear();
+                localStorage.removeItem('saas_token');
+                localStorage.removeItem('saas_user');
+                localStorage.removeItem('saas_kotak');
+                // localStorage.removeItem('trade_mode'); // Mode yaad rakhne dete hain
                 if(wsConnection) wsConnection.close();
                 document.getElementById('auth-section').classList.remove('hidden');
                 document.getElementById('dashboard-section').classList.add('hidden');
@@ -472,7 +510,6 @@
             const token = localStorage.getItem('saas_token');
             if(!token) return;
 
-            // ✅ Backend par Query Parameter mein token bhej raha hai
             wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}`);
             
             wsConnection.onopen = () => {
@@ -484,7 +521,6 @@
             wsConnection.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 
-                // P&L update aane par HTML aur Color update karo
                 if(data.pnl !== undefined) {
                     const pnlEl = document.getElementById('live-pnl');
                     pnlEl.innerText = `${data.pnl >= 0 ? '+' : ''} ₹${data.pnl.toFixed(2)}`;
@@ -502,7 +538,6 @@
                 indicator.classList.remove('bg-success', 'shadow-[0_0_8px_#10b981]');
                 indicator.classList.add('bg-danger', 'shadow-[0_0_8px_#ef4444]');
                 
-                // Connection tootne par auto-reconnect
                 setTimeout(connectWebSocket, 5000); 
             };
         }

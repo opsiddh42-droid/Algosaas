@@ -5,6 +5,13 @@ from app.core.database import get_collection
 import pandas as pd
 from datetime import datetime, timedelta
 
+# 🟢 GLOBAL SESSION STORAGE (Live Token bachane ke liye)
+try:
+    from app.core.sessions import KOTAK_SESSIONS
+except ImportError:
+    # Agar sessions.py file nahi bani hai, toh temporary yahi bana dete hain
+    KOTAK_SESSIONS = {}
+
 router = APIRouter()
 
 # --- ⚙️ CONFIGURATION ---
@@ -14,11 +21,15 @@ INDICES_CONFIG = {
     "SENSEX": {"Exchange": "bse_fo", "SpotToken": "1", "SpotExch": "bse_cm", "Gap": 100}
 }
 
+# 🟢 NAYA CLIENT FETCHER (Memory se uthayega)
 def get_kotak_client(db_user: dict):
-    try:
-        return NeoAPI(consumer_key=db_user["kotak_consumer_key"], environment='prod')
-    except Exception as e:
-        return None
+    user_id = db_user.get("id")
+    if user_id in KOTAK_SESSIONS:
+        return KOTAK_SESSIONS[user_id]
+    else:
+        # Agar session nahi hai, toh seedha error throw karega
+        raise Exception("Active Kotak Session Not Found! Please go to Dashboard and start Daily Session (TOTP).")
+
 
 # ==========================================
 # ROUTE: GET REAL OPTION CHAIN (MONGODB MASTER)
@@ -30,15 +41,14 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         db_user = await users_col.find_one({"id": current_user["id"]})
         
         if not db_user or db_user.get("kotak_status") != "Active":
-            raise HTTPException(status_code=400, detail="Broker profile not connected.")
+            raise Exception("Broker profile not connected. Please setup Kotak Neo first.")
 
+        # Client memory se nikal rahe hain
         client = get_kotak_client(db_user)
-        if not client:
-            raise HTTPException(status_code=400, detail="Kotak client initialization failed.")
 
         conf = INDICES_CONFIG.get(symbol)
         if not conf:
-            raise HTTPException(status_code=400, detail="Invalid Index Symbol")
+            raise Exception("Invalid Index Symbol.")
 
         # 1. GET REAL SPOT PRICE
         spot_resp = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
@@ -47,7 +57,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
             spot_price = float(spot_resp['data'][0].get('ltp', spot_resp['data'][0].get('lastPrice', 0)))
 
         if spot_price == 0:
-            raise HTTPException(status_code=500, detail="Failed to fetch Live Spot Price from Kotak.")
+            raise Exception(f"Failed to fetch Live Spot Price from Kotak for token {conf['SpotToken']}. Check API/Token.")
 
         # 2. CALCULATE ATM & STRIKE RANGE
         gap = conf["Gap"]
@@ -60,7 +70,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         df = pd.DataFrame(cursor)
         
         if df.empty or "7" not in df.columns.astype(str):
-            raise HTTPException(status_code=500, detail="Master Data empty in MongoDB. Please run the daily updater script.")
+            raise Exception("Master Data empty or invalid in MongoDB. Please run the data uploader script.")
 
         df.columns = df.columns.astype(str)
         now = datetime.now()
@@ -77,7 +87,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
                     expiries_found.append(d_str)
         
         if not expiries_found:
-            raise HTTPException(status_code=500, detail="No upcoming expiry found.")
+            raise Exception("No upcoming expiry found in database.")
             
         nearest_expiry = expiries_found[0]
 
@@ -108,7 +118,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
 
         # 5. FETCH REAL QUOTES
         if not req_tokens:
-             raise HTTPException(status_code=500, detail="Option tokens not found.")
+             raise Exception("Option tokens not found in Master Data for calculated strikes.")
              
         q_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
         
@@ -135,4 +145,5 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
 
     except Exception as e:
         print(f"❌ Real Option Chain Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Frontend ko saaf error bhej rahe hain
+        raise HTTPException(status_code=400, detail=str(e))

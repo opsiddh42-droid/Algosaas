@@ -62,3 +62,9 @@ async def root():
         "scheduler": "Running",
         "websockets": "Active"
     }
+# --- 📡 WEBSOCKET ROUTE (For Live Data) ---
+# Ab URL mein token ke sath 'mode' bhi aayega (e.g. ?token=XYZ&mode=PAPER)
+@app.websocket("/ws/live-data")
+async def websocket_endpoint(websocket: WebSocket, token: str, mode: str = "PAPER"):
+    await websocket.accept()
+    await stream_live_pnl(websocket, token, mode)

@@ -149,33 +149,24 @@
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
+                        <label class="block text-xs text-slate-400 mb-1">Mobile Number</label>
+                        <input type="tel" id="kotak-mobile" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="919876543210">
+                    </div>
+                    <div>
                         <label class="block text-xs text-slate-400 mb-1">UCC (Client Code)</label>
                         <input type="text" id="kotak-ucc" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none uppercase" placeholder="ABCD123">
                     </div>
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Mobile Number</label>
-                        <input type="tel" id="kotak-mobile" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="9876543210">
-                    </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Trading Password</label>
-                        <input type="password" id="kotak-password" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="••••••••">
-                    </div>
+                <div class="grid grid-cols-2 gap-4 mb-6">
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">MPIN</label>
                         <input type="password" id="kotak-mpin" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="123456">
                     </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-xs text-slate-400 mb-1">Consumer Key</label>
-                    <input type="text" id="kotak-consumer-key" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none">
-                </div>
-                <div class="mb-6">
-                    <label class="block text-xs text-slate-400 mb-1">Consumer Secret</label>
-                    <input type="password" id="kotak-consumer-secret" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Consumer Key</label>
+                        <input type="text" id="kotak-consumer-key" required class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none" placeholder="Enter Key">
+                    </div>
                 </div>
                 
                 <button type="submit" id="kotak-submit-btn" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2">
@@ -394,15 +385,13 @@
             const errorMsg = document.getElementById('kotak-error');
             const token = localStorage.getItem('saas_token');
 
-            // Naye fields payload mein add kar diye
+            // Sirf 5 exact fields bhej rahe hain
             const payload = {
                 name: document.getElementById('kotak-name').value,
-                ucc: document.getElementById('kotak-ucc').value,
                 mobile: document.getElementById('kotak-mobile').value,
-                password: document.getElementById('kotak-password').value,
+                ucc: document.getElementById('kotak-ucc').value,
                 mpin: document.getElementById('kotak-mpin').value,
-                consumer_key: document.getElementById('kotak-consumer-key').value,
-                consumer_secret: document.getElementById('kotak-consumer-secret').value
+                consumer_key: document.getElementById('kotak-consumer-key').value
             };
 
             btn.innerHTML = '<span class="loader"></span> Connecting...';

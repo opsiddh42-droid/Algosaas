@@ -6,7 +6,7 @@ python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==3.2.2
-neo-api-client
+git+https://github.com/Kotak-Neo/Kotak-neo-api-v2.git@v2.0.1#egg=neo_api_client
 pandas
 wsproto
 apscheduler

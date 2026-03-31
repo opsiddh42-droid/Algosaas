@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # 🟢 FIX 1: Chhota 'from' kar diya
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -44,14 +44,6 @@ app.include_router(trades.router, prefix=f"{settings.API_V1_STR}/trades", tags=[
 app.include_router(market.router, prefix=f"{settings.API_V1_STR}/market", tags=["Market Data"])
 app.include_router(strategy.router, prefix=f"{settings.API_V1_STR}/strategy", tags=["Strategy Builder"])
 
-# --- 📡 WEBSOCKET ROUTE (For Live Data) ---
-# ✅ Route update kiya. Ab URL mein ID nahi, Token aayega security aur sahi connection ke liye.
-@app.websocket("/ws/live-data")
-async def websocket_endpoint(websocket: WebSocket, token: str):
-    await websocket.accept()
-    # P&L calculation ka saara load ab stream.py handle karega
-    await stream_live_pnl(websocket, token)
-
 # --- 🩺 HEALTH CHECK ROUTE ---
 @app.get("/")
 async def root():
@@ -62,9 +54,11 @@ async def root():
         "scheduler": "Running",
         "websockets": "Active"
     }
+
 # --- 📡 WEBSOCKET ROUTE (For Live Data) ---
-# Ab URL mein token ke sath 'mode' bhi aayega (e.g. ?token=XYZ&mode=PAPER)
+# 🟢 FIX 2: Duplicate hata diya, sirf sahi wala (Token + Mode) rakha hai
 @app.websocket("/ws/live-data")
 async def websocket_endpoint(websocket: WebSocket, token: str, mode: str = "PAPER"):
     await websocket.accept()
+    # P&L calculation ka saara load ab stream.py handle karega
     await stream_live_pnl(websocket, token, mode)

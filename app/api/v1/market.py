@@ -4,17 +4,18 @@ from app.api.deps import get_current_user
 from app.core.database import get_collection
 from app.core.sessions import KOTAK_SESSIONS
 import pandas as pd
-from datetime import datetime, timedelta
-import math
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
-# 🟢 CONFIGURATIONS (Sirf Strike Gap aur Exchange zaroori hai)
 INDICES_CONFIG = {
     "NIFTY": {"Exchange": "nse_fo", "Gap": 50},
     "BANKNIFTY": {"Exchange": "nse_fo", "Gap": 100},
     "SENSEX": {"Exchange": "bse_fo", "Gap": 100}
 }
+
+# 🟢 INDIA TIMEZONE FIX (UTC + 5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_kotak_client(user_id: str):
     if user_id not in KOTAK_SESSIONS:
@@ -25,11 +26,9 @@ def get_kotak_client(user_id: str):
 @router.get("/option-chain")
 async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(get_current_user)):
     try:
-        # 1. LIVE CLIENT
         client = get_kotak_client(current_user["id"]) 
         conf = INDICES_CONFIG.get(symbol)
 
-        # 2. LOAD MONGODB MASTER DATA (Instead of CSV)
         fo_master_col = get_collection("fo_master")
         cursor = await fo_master_col.find({"IndexName": symbol}).to_list(length=None)
         df = pd.DataFrame(cursor)
@@ -37,52 +36,62 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         if df.empty or "5" not in df.columns.astype(str): 
             raise Exception("MongoDB Master Data empty ya columns missing hain.")
 
-        df.columns = df.columns.astype(str) # Columns string format mein (0, 1, 5, 7 etc)
-
-        # =========================================
-        # 🟢 STEP 1: FIND FUTURE TOKEN (Aapka Telegram Logic)
-        # =========================================
-        now = datetime.now()
-        yy = now.strftime("%y")         
-        mon = now.strftime("%b").upper() 
-        search_sym = f"{symbol}{yy}{mon}FUT" # Eg: NIFTY26APRFUT
+        df.columns = df.columns.astype(str)
         
-        fut_row = df[df["5"] == search_sym]
-        if fut_row.empty:
-            raise Exception(f"Symbol '{search_sym}' MongoDB (Master Data) mein nahi mila.")
+        # 🟢 SMART FUTURE FINDER (IST TIME + MONTH ROLLOVER)
+        now_ist = datetime.now(IST)
+        
+        # Hum 2 mahine test karenge: Current aur Next (agar current expire ho gaya ho)
+        next_month_date = now_ist.replace(day=28) + timedelta(days=5)
+        months_to_try = [now_ist, next_month_date]
+        
+        spot_price = 0.0
+        fut_token = None
+        search_sym = ""
+        
+        for test_date in months_to_try:
+            yy = test_date.strftime("%y")         
+            mon = test_date.strftime("%b").upper() 
+            search_sym = f"{symbol}{yy}{mon}FUT" # Pehle MAR check karega, fail hua toh APR
             
-        fut_token = str(int(float(fut_row.iloc[0]["0"])))
+            fut_row = df[df["5"] == search_sym]
+            if fut_row.empty:
+                continue
+                
+            tk = str(int(float(fut_row.iloc[0]["0"])))
+            
+            # API hit karke check karo kya yeh future zinda hai?
+            try:
+                q = client.quotes(instrument_tokens=[{"instrument_token": tk, "exchange_segment": conf["Exchange"]}], quote_type="all")
+                if q and isinstance(q, dict) and 'data' in q and len(q['data']) > 0:
+                    price = float(q['data'][0].get('ltp', q['data'][0].get('lastPrice', 0)))
+                    if price > 0:
+                        spot_price = price
+                        fut_token = tk
+                        break # Valid price mil gaya, loop tod do!
+            except Exception:
+                pass
+
+        if spot_price == 0: 
+            raise Exception(f"Failed to fetch Future Price. Checked symbols like {search_sym}. Kotak API returned 0.")
 
         # =========================================
-        # 🟢 STEP 2: GET ATM PRICE (Aapka Telegram Logic)
+        # 🟢 GET ATM PRICE
         # =========================================
         gap = conf["Gap"]
-        spot_price = 0.0
-        
-        # Kotak API hit
-        q = client.quotes(instrument_tokens=[{"instrument_token": fut_token, "exchange_segment": conf["Exchange"]}], quote_type="all")
-        
-        # Parse result
-        if q and isinstance(q, dict) and 'data' in q and len(q['data']) > 0:
-            spot_price = float(q['data'][0].get('ltp', q['data'][0].get('lastPrice', 0)))
-            
-        if spot_price == 0: 
-            raise Exception(f"Failed to fetch Future Price for {search_sym}. Kotak API returned 0.")
-
         atm = round(spot_price / gap) * gap
         strikes = [atm + (i * gap) for i in range(-10, 11)]
 
         # =========================================
-        # 🟢 STEP 3: SEARCH EXPIRY (Aapka Telegram Logic)
+        # 🟢 SEARCH EXPIRY (IST Time par)
         # =========================================
         all_symbols = set(df["7"].astype(str).values)
         expiry_date_str = None
         
         for i in range(0, 45):
-            test_date = now + timedelta(days=i)
+            test_date = now_ist + timedelta(days=i)
             d_str = f"{test_date.strftime('%d')}{test_date.strftime('%b').upper()}{test_date.strftime('%y')}"
             
-            # Smart check (with .00 and without .00)
             check_sym_1 = f"{symbol}{d_str}{atm}.00CE"
             check_sym_2 = f"{symbol}{d_str}{atm}CE"
             
@@ -94,7 +103,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
             raise Exception(f"No valid expiry found for ATM {atm}.")
 
         # =========================================
-        # 🟢 STEP 4: BUILD CHAIN TOKENS
+        # 🟢 BUILD CHAIN TOKENS
         # =========================================
         prefix = f"{symbol}{expiry_date_str}"
         req_tokens = []
@@ -103,14 +112,12 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         for stk in strikes:
             strike_map[stk] = {"strike": stk, "ce_ltp": 0, "ce_oi": 0, "pe_ltp": 0, "pe_oi": 0}
             
-            # CE Token Check
             row_ce = df[(df["7"] == f"{prefix}{stk}.00CE") | (df["7"] == f"{prefix}{stk}CE")]
             if not row_ce.empty:
                 tk = str(int(float(row_ce.iloc[0]["0"])))
                 req_tokens.append({"instrument_token": tk, "exchange_segment": conf["Exchange"]})
                 strike_map[stk]["ce_token"] = tk
                 
-            # PE Token Check
             row_pe = df[(df["7"] == f"{prefix}{stk}.00PE") | (df["7"] == f"{prefix}{stk}PE")]
             if not row_pe.empty:
                 tk = str(int(float(row_pe.iloc[0]["0"])))
@@ -121,7 +128,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
             raise Exception(f"Option tokens nahi mile {prefix} ke liye.")
              
         # =========================================
-        # 🟢 STEP 5: FETCH LIVE PREMIUMS
+        # 🟢 FETCH LIVE PREMIUMS
         # =========================================
         q_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
              

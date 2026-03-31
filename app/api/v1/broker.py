@@ -22,10 +22,9 @@ async def connect_kotak_full(creds: KotakCredentials, current_user: dict = Depen
     try:
         print(f"🔄 Full Setup: Connecting Kotak Neo for User: {creds.name} (UCC: {creds.ucc})")
         
-        # ✅ NAKLI SECRET WALA JUGAAD YAHAN HAI
+        # ✅ NAKLI SECRET HATA DIYA - Ekdum original format
         client = NeoAPI(
             consumer_key=creds.consumer_key, 
-            consumer_secret="dummy_secret_to_bypass", # Library ko fool karne ke liye
             environment='prod'
         )
         
@@ -68,10 +67,9 @@ async def connect_kotak_quick(req: KotakTotpOnly, current_user: dict = Depends(g
         mpin = user_data.get("kotak_mpin")
         consumer_key = user_data.get("kotak_consumer_key")
 
-        # ✅ NAKLI SECRET WALA JUGAAD YAHAN BHI DALEGA
+        # ✅ YAHAN SE BHI NAKLI SECRET HATA DIYA
         client = NeoAPI(
             consumer_key=consumer_key, 
-            consumer_secret="dummy_secret_to_bypass", # Library ko fool karne ke liye
             environment='prod'
         )
         

@@ -381,7 +381,9 @@
             const overallSlEnabled = document.getElementById('toggle-overall-sl').checked;
             const overallSlValue = overallSlEnabled ? document.getElementById('overall-sl-value').value : null;
 
+            // 🟢 YAHAN CHANGE KIYA HAI: executionMode attach ho raha hai
             const strategyData = {
+                executionMode: localStorage.getItem('trade_mode') || 'PAPER', 
                 index: document.getElementById('strat-index').value,
                 underlying: stratState.underlying,
                 type: stratState.stratType,

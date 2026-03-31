@@ -3,190 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Live Option Chain | AlgoSaaS</title>
+    <title>Option Chain | AlgoSaaS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        darkBase: '#0f172a',
-                        darkCard: '#1e293b',
-                        primary: '#3b82f6',
-                        success: '#10b981',
-                        danger: '#ef4444',
-                        atmBg: '#334155'
-                    }
-                }
-            }
-        }
+        tailwind.config = { theme: { extend: { colors: { darkBase: '#0f172a', darkCard: '#1e293b', primary: '#3b82f6', success: '#10b981', danger: '#ef4444' } } } }
     </script>
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
-        .hidden { display: none !important; }
-        /* Chhota loader mobile ke liye */
-        .spinner { border: 2px solid #1e293b; border-top: 2px solid #3b82f6; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; }
+        .loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Scrollbar hide for clean mobile look */
-        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        /* Option Chain Table Styling */
+        table { border-collapse: separate; border-spacing: 0; }
+        th { position: sticky; top: 0; background: #1e293b; z-index: 10; font-size: 10px; }
+        .atm-row td { border-top: 2px solid #3b82f6 !important; border-bottom: 2px solid #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1); }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <header class="bg-darkCard border-b border-slate-700 p-3 sticky top-0 z-50 flex items-center justify-between shadow-md">
+    <header class="bg-darkCard border-b border-slate-700 p-4 sticky top-0 z-50 flex items-center justify-between shadow-md">
         <div class="flex items-center gap-3">
-            <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 transition">
-                &larr;
-            </button>
-            <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                ⛓️ Option Chain 
-                <span id="live-indicator" class="w-2 h-2 bg-success rounded-full shadow-[0_0_5px_#10b981] hidden"></span>
-            </h2>
+            <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 transition font-bold">&larr;</button>
+            <div class="flex flex-col">
+                <h2 class="text-sm font-bold text-white">⛓️ Option Chain</h2>
+                <div class="flex items-center gap-2 mt-1">
+                    <select id="index-selector" onchange="fetchOptionChain()" class="bg-slate-900 border border-slate-600 text-[10px] text-white rounded px-1 py-0.5 outline-none font-bold cursor-pointer">
+                        <option value="NIFTY">NIFTY</option>
+                        <option value="BANKNIFTY">BANKNIFTY</option>
+                        <option value="SENSEX">SENSEX</option>
+                    </select>
+                    <span id="expiry-date" class="text-[10px] text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded">--</span>
+                </div>
+            </div>
         </div>
-        
-        <select id="index-select" onchange="fetchOptionChain()" class="bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-white focus:border-primary outline-none font-bold">
-            <option value="NIFTY">NIFTY</option>
-            <option value="BANKNIFTY">BANKNIFTY</option>
-            <option value="SENSEX">SENSEX</option>
-        </select>
+        <div class="text-right">
+            <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Spot Price</p>
+            <p id="spot-price" class="text-sm font-black text-white">0.00</p>
+        </div>
     </header>
 
-    <main class="flex-1 overflow-x-auto p-2">
-        
-        <div id="status-msg" class="text-center text-xs text-slate-400 my-2">
-            <span class="spinner mr-1"></span> Fetching Live Market Data...
+    <div id="status-container" class="p-4 flex flex-col items-center justify-center flex-1">
+        <div id="loader" class="flex flex-col items-center gap-3">
+            <span class="loader w-8 h-8 border-4 border-t-primary"></span>
+            <p class="text-xs text-slate-400 animate-pulse">Fetching Live Data from Kotak...</p>
         </div>
+        <div id="error-box" class="hidden bg-danger/10 border border-danger/50 p-4 rounded-xl text-center max-w-sm w-full shadow-lg">
+            <div class="text-3xl mb-2">⚠️</div>
+            <h3 class="text-danger font-bold text-sm mb-1">Data Fetch Failed</h3>
+            <p id="error-msg" class="text-xs text-slate-300"></p>
+            <button onclick="fetchOptionChain()" class="mt-4 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-4 py-2 rounded text-xs text-white font-bold transition">Try Again</button>
+        </div>
+    </div>
 
-        <div class="bg-darkCard border border-slate-700 rounded-lg overflow-hidden shadow-lg w-full min-w-[340px]">
-            <table class="w-full text-center border-collapse text-[10px] sm:text-xs">
-                
-                <thead class="bg-slate-800 text-slate-300 sticky top-0 z-10 shadow-md">
+    <main id="chain-container" class="hidden flex-1 overflow-auto bg-darkBase pb-10">
+        <div class="min-w-[600px]"> <table class="w-full text-center text-xs">
+                <thead>
                     <tr>
-                        <th colspan="3" class="p-1.5 border-b border-r border-slate-700 text-success font-black bg-success/10">CALLS (CE)</th>
-                        <th class="p-1.5 border-b border-slate-700 bg-slate-900 font-black">STRIKE</th>
-                        <th colspan="3" class="p-1.5 border-b border-l border-slate-700 text-danger font-black bg-danger/10">PUTS (PE)</th>
+                        <th colspan="2" class="py-2 border-b border-r border-slate-600 text-success uppercase tracking-wider">CALLS (CE)</th>
+                        <th class="py-2 border-b border-slate-600 text-white uppercase tracking-wider bg-slate-800">STRIKE</th>
+                        <th colspan="2" class="py-2 border-b border-l border-slate-600 text-danger uppercase tracking-wider">PUTS (PE)</th>
                     </tr>
-                    <tr class="text-slate-400 bg-slate-800/80 uppercase tracking-wider">
-                        <th class="p-1 border-b border-r border-slate-700 w-[12%]">OI</th>
-                        <th class="p-1 border-b border-r border-slate-700 w-[12%]">Chng</th>
-                        <th class="p-1 border-b border-r border-slate-700 w-[15%]">LTP</th>
-                        
-                        <th class="p-1 border-b border-slate-700 bg-slate-900 w-[22%]">PRICE</th>
-                        
-                        <th class="p-1 border-b border-l border-slate-700 w-[15%]">LTP</th>
-                        <th class="p-1 border-b border-l border-slate-700 w-[12%]">Chng</th>
-                        <th class="p-1 border-b border-l border-slate-700 w-[12%]">OI</th>
+                    <tr class="text-slate-400 bg-slate-800/50">
+                        <td class="py-1.5 border-b border-r border-slate-700">OI (Lakh)</td>
+                        <td class="py-1.5 border-b border-r border-slate-700 font-bold text-slate-300">LTP</td>
+                        <td class="py-1.5 border-b border-slate-700 bg-slate-800 font-bold text-white shadow-lg">PRICE</td>
+                        <td class="py-1.5 border-b border-l border-slate-700 font-bold text-slate-300">LTP</td>
+                        <td class="py-1.5 border-b border-l border-slate-700">OI (Lakh)</td>
                     </tr>
                 </thead>
-
-                <tbody id="chain-body" class="text-slate-200">
-                    <tr><td colspan="7" class="p-4 text-slate-500">Waiting for data...</td></tr>
-                </tbody>
-
+                <tbody id="chain-body">
+                    </tbody>
             </table>
         </div>
-        <div class="h-10"></div> </main>
+    </main>
 
     <script>
         const API_BASE_URL = "https://algosaas.onrender.com/api/v1";
-        let refreshInterval = null;
 
-        // Number format: 1.5 L, 2.3 Cr
-        function formatOI(num) {
-            if (!num) return "0";
-            let val = Math.abs(num);
-            if (val >= 10000000) return (num / 10000000).toFixed(2) + "Cr";
-            if (val >= 100000) return (num / 100000).toFixed(1) + "L";
-            return num.toLocaleString();
-        }
+        window.onload = () => {
+            fetchOptionChain();
+        };
 
-        // Color coding for Chng (Green for positive, Red for negative)
-        function formatChng(num) {
-            if (!num || num === 0) return `<span class="text-slate-500">0</span>`;
-            if (num > 0) return `<span class="text-success">+${num}</span>`;
-            return `<span class="text-danger">${num}</span>`;
+        function formatOI(oi) {
+            if (oi === 0) return "-";
+            return (oi / 100000).toFixed(1); // Converts to Lakhs
         }
 
         async function fetchOptionChain() {
             const token = localStorage.getItem('saas_token');
-            const indexName = document.getElementById('index-select').value;
-            const statusMsg = document.getElementById('status-msg');
-            const indicator = document.getElementById('live-indicator');
-            
-            if (!token) {
-                window.location.href = 'index.html';
+            if(!token) {
+                showError("Please login to view Option Chain.");
                 return;
             }
 
-            statusMsg.innerHTML = '<span class="spinner mr-1"></span> Refreshing...';
-            indicator.classList.add('hidden');
+            const symbol = document.getElementById('index-selector').value;
+            
+            // UI Reset
+            document.getElementById('status-container').classList.remove('hidden');
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('error-box').classList.add('hidden');
+            document.getElementById('chain-container').classList.add('hidden');
+            document.getElementById('expiry-date').innerText = "--";
+            document.getElementById('spot-price').innerText = "0.00";
 
             try {
-                // Backend endpoint jo hum abhi banayenge
-                const response = await fetch(`${API_BASE_URL}/market/option-chain?index=${indexName}`, {
-                    method: 'GET',
+                const response = await fetch(`${API_BASE_URL}/market/option-chain?symbol=${symbol}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                
+                const data = await response.json();
 
-                if(response.ok) {
-                    const data = await response.json();
-                    renderTable(data);
-                    statusMsg.innerHTML = `✅ Last updated: ${new Date().toLocaleTimeString()}`;
-                    indicator.classList.remove('hidden'); // Green dot on
+                if (response.ok) {
+                    renderChain(data);
                 } else {
-                    statusMsg.innerHTML = "❌ Failed to fetch data from broker.";
+                    // 🚨 YAHAN DIKHEGA ASLI BACKEND ERROR
+                    showError(data.detail || "Unknown server error occurred.");
                 }
             } catch (err) {
-                statusMsg.innerHTML = "⚠️ Network error. Retrying...";
+                showError("Network Error. Cannot connect to Render Backend.");
             }
         }
 
-        function renderTable(data) {
+        function showError(msg) {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('error-box').classList.remove('hidden');
+            document.getElementById('error-msg').innerText = msg;
+        }
+
+        function renderChain(data) {
+            document.getElementById('status-container').classList.add('hidden');
+            document.getElementById('chain-container').classList.remove('hidden');
+            
+            document.getElementById('spot-price').innerText = data.spot_price.toFixed(2);
+            document.getElementById('expiry-date').innerText = data.expiry;
+
             const tbody = document.getElementById('chain-body');
             tbody.innerHTML = '';
 
-            // data = { atm: 22000, options: [ {strike: 21900, ce_ltp: 120, ce_oi: 150000, ce_chng: 5000, pe_ltp: ...}, ... ] }
-            const atmStrike = data.atm;
+            // Find ATM Strike to highlight
+            const gap = data.symbol === "NIFTY" ? 50 : 100;
+            const atmStrike = Math.round(data.spot_price / gap) * gap;
 
-            data.options.forEach(row => {
+            data.data.forEach(row => {
                 const isATM = row.strike === atmStrike;
-                const rowClass = isATM ? "bg-atmBg border-y-2 border-primary font-bold shadow-[inset_0_0_10px_rgba(59,130,246,0.3)]" : "border-b border-slate-700/50 hover:bg-slate-800/50";
+                const rowClass = isATM ? 'atm-row' : 'border-b border-slate-700/50 hover:bg-slate-800/30 transition-colors';
+                
+                // Colors based on ITM/OTM
+                const ceBgClass = row.strike < atmStrike ? 'bg-amber-500/10' : '';
+                const peBgClass = row.strike > atmStrike ? 'bg-amber-500/10' : '';
 
-                const tr = document.createElement('tr');
-                tr.className = rowClass;
-
-                tr.innerHTML = `
-                    <td class="p-1.5 border-r border-slate-700/50 text-slate-300">${formatOI(row.ce_oi)}</td>
-                    <td class="p-1.5 border-r border-slate-700/50">${formatChng(row.ce_chng)}</td>
-                    <td class="p-1.5 border-r border-slate-700 text-success">${(row.ce_ltp || 0).toFixed(1)}</td>
-                    
-                    <td class="p-1.5 border-r border-slate-700 bg-slate-900 font-mono text-white">${row.strike}</td>
-                    
-                    <td class="p-1.5 border-l border-slate-700 text-danger">${(row.pe_ltp || 0).toFixed(1)}</td>
-                    <td class="p-1.5 border-l border-slate-700/50">${formatChng(row.pe_chng)}</td>
-                    <td class="p-1.5 border-l border-slate-700/50 text-slate-300">${formatOI(row.pe_oi)}</td>
+                const html = `
+                    <tr class="${rowClass}">
+                        <td class="py-2 px-1 border-r border-slate-700/50 text-[10px] text-slate-400 ${ceBgClass}">${formatOI(row.ce_oi)}</td>
+                        <td class="py-2 px-2 border-r border-slate-700/50 font-bold text-success ${ceBgClass}">${row.ce_ltp > 0 ? row.ce_ltp.toFixed(2) : '-'}</td>
+                        
+                        <td class="py-2 px-3 font-black text-white bg-slate-800/80 shadow-md">${row.strike}</td>
+                        
+                        <td class="py-2 px-2 border-l border-slate-700/50 font-bold text-danger ${peBgClass}">${row.pe_ltp > 0 ? row.pe_ltp.toFixed(2) : '-'}</td>
+                        <td class="py-2 px-1 border-l border-slate-700/50 text-[10px] text-slate-400 ${peBgClass}">${formatOI(row.pe_oi)}</td>
+                    </tr>
                 `;
-                tbody.appendChild(tr);
+                tbody.innerHTML += html;
             });
 
-            // Agar ATM row hai, toh screen ko wahan thoda scroll karwa do (Mobile UX ke liye)
-            const atmElement = document.querySelector('.bg-atmBg');
-            if(atmElement && !window.scrolledToAtm) {
-                atmElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                window.scrolledToAtm = true; // Ek hi baar auto-scroll ho
-            }
+            // Auto-scroll to ATM row (delayed slightly to ensure render)
+            setTimeout(() => {
+                const atmEl = document.querySelector('.atm-row');
+                if (atmEl) atmEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
         }
-
-        // Jab page load ho, data mangwao aur har 5 second mein update karo
-        window.onload = () => {
-            fetchOptionChain();
-            refreshInterval = setInterval(fetchOptionChain, 5000); // Har 5 second mein refresh
-        };
-
-        // Page se bahar jane par timer band kar do
-        window.onbeforeunload = () => {
-            if(refreshInterval) clearInterval(refreshInterval);
-        };
     </script>
 </body>
 </html>

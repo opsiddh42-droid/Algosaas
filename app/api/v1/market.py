@@ -8,25 +8,27 @@ from datetime import datetime, timedelta
 router = APIRouter()
 
 INDICES_CONFIG = {
-    "NIFTY": {"Exchange": "nse_fo", "SpotToken": "256265", "SpotExch": "nse_cm", "Gap": 50},
+    "NIFTY": {"Exchange": "nse_fo", "SpotToken": "Nifty50", "SpotExch": "nse_cm", "Gap": 50},
     "BANKNIFTY": {"Exchange": "nse_fo", "SpotToken": "26000", "SpotExch": "nse_cm", "Gap": 100},
     "SENSEX": {"Exchange": "bse_fo", "SpotToken": "1", "SpotExch": "bse_cm", "Gap": 100}
 }
 
-# 🟢 THE MASTER STROKE: DB Se Token utha kar client zinda karna
+# 🟢 THE REAL FIX: Sahi Naam Se Token Uthana
 def get_kotak_client(db_user: dict):
-    token = db_user.get("kotak_bearer_token")
-    if not token:
-        raise Exception("Access Token not found in Database. Please do TOTP Login again.")
+    # Dhyan de: Yahan 'kotak_bearer_token' likha hai, jo DB mein save hota hai
+    token = db_user.get("kotak_bearer_token") 
     
-    # Naya client banao
+    if not token:
+        raise Exception("Access Token Database mein nahi mila. Kripya naya TOTP daalein.")
+    
+    # Naya client start karo
     client = NeoAPI(consumer_key=db_user["kotak_consumer_key"], environment='prod')
     
-    # DB wala token client mein inject kar do!
-    client.bearer_token = token
-    client.access_token = token # Safe side dono set kar diye
+    # DB wala token client mein inject kar do
+    client.bearer_token = token 
+    client.access_token = token 
+    
     return client
-
 
 @router.get("/option-chain")
 async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(get_current_user)):
@@ -35,15 +37,15 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         db_user = await users_col.find_one({"id": current_user["id"]})
         if not db_user or db_user.get("kotak_status") != "Active": raise Exception("Setup Kotak Neo first.")
 
-        # Client automatically token le aayega
+        # Client token ke sath ready hai
         client = get_kotak_client(db_user) 
         conf = INDICES_CONFIG.get(symbol)
 
         try:
             spot_resp = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
         except TypeError as te:
-            if "NoneType" in str(te):
-                raise Exception("Aapka Access Token expire ho gaya hai. Kripya naya TOTP daalein!")
+            if "NoneType" in str(te): 
+                raise Exception("Aapka Token Invalid ho chuka hai ya Client theek se set nahi hua.")
             raise te
 
         spot_price = 0.0
@@ -91,7 +93,12 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
 
         if not req_tokens: raise Exception("Option tokens match nahi hue.")
              
-        q_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
+        try:
+             q_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
+        except TypeError as te:
+             if "NoneType" in str(te): raise Exception("Token Expire. Please retry TOTP.")
+             raise te
+             
         if q_resp and isinstance(q_resp, dict) and 'data' in q_resp:
             for item in q_resp['data']:
                 tk = str(item.get('exchange_token', item.get('tk')))
@@ -105,4 +112,5 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         return {"status": "success", "symbol": symbol, "expiry": nearest_expiry, "spot_price": spot_price, "data": chain_data, "is_dummy": False}
 
     except Exception as e:
+        print(f"❌ Error: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))

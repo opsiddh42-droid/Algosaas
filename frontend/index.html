@@ -136,7 +136,7 @@
     </div>
 
     <script>
-        // ✅ Live Render URLs Updated Here
+        // ✅ Live Render URLs
         const API_BASE_URL = "https://algosaas.onrender.com/api/v1"; 
         const WS_BASE_URL = "wss://algosaas.onrender.com/ws/live-data";
         
@@ -167,6 +167,16 @@
             }
         }
 
+        // Error Padhne Ka Helper Function
+        function getErrorMessage(detail) {
+            if (!detail) return "Server error occurred!";
+            if (typeof detail === 'string') return detail;
+            if (Array.isArray(detail)) {
+                return detail.map(err => `${err.loc[err.loc.length - 1]}: ${err.msg}`).join(' | ');
+            }
+            return "Unknown error occurred";
+        }
+
         // 1. Handle Signup
         async function handleSignup(e) {
             e.preventDefault();
@@ -184,11 +194,11 @@
             successMsg.classList.add('hidden');
 
             try {
-                // Assuming standard auth signup endpoint. Adjust if you named it differently in auth.py
+                // Name ki jagah full_name use kiya, jaisa pydantic models normally expect karte hain
                 const response = await fetch(`${API_BASE_URL}/auth/signup`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name, email: email, password: password })
+                    body: JSON.stringify({ full_name: name, email: email, password: password })
                 });
 
                 const data = await response.json();
@@ -196,10 +206,9 @@
                 if(response.ok) {
                     successMsg.classList.remove('hidden');
                     document.getElementById('signup-form').reset();
-                    // Optional: Switch to login after 2 seconds
                     setTimeout(() => toggleAuth('login'), 2000);
                 } else {
-                    errorMsg.innerText = data.detail || "Signup failed!";
+                    errorMsg.innerText = getErrorMessage(data.detail);
                     errorMsg.classList.remove('hidden');
                 }
             } catch (err) {
@@ -211,7 +220,7 @@
             }
         }
 
-        // 2. Handle Login
+        // 2. Handle Login (FormData Update)
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
@@ -224,10 +233,15 @@
             errorMsg.classList.add('hidden');
 
             try {
+                // FastAPI OAuth2PasswordRequestForm ke liye URLSearchParams zaroori hai
+                const formData = new URLSearchParams();
+                formData.append('username', email); // email ko username field mein bhejna padta hai
+                formData.append('password', password);
+
                 const response = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, password: password })
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData
                 });
 
                 const data = await response.json();
@@ -239,7 +253,7 @@
                     
                     showDashboard(data.user_name || "Trader", data.kotak_status || "Inactive");
                 } else {
-                    errorMsg.innerText = data.detail || "Login failed!";
+                    errorMsg.innerText = getErrorMessage(data.detail);
                     errorMsg.classList.remove('hidden');
                 }
             } catch (err) {

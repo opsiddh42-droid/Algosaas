@@ -4,6 +4,13 @@ from neo_api_client import NeoAPI
 from app.api.deps import get_current_user
 from app.core.database import get_collection
 
+# 🟢 GLOBAL SESSION STORAGE IMPORT (Magic happens here)
+try:
+    from app.core.sessions import KOTAK_SESSIONS
+except ImportError:
+    import app.api.v1.market as mkt
+    KOTAK_SESSIONS = mkt.KOTAK_SESSIONS
+
 router = APIRouter()
 
 class KotakCredentials(BaseModel):
@@ -17,12 +24,14 @@ class KotakCredentials(BaseModel):
 class KotakTotpOnly(BaseModel):
     totp: str
 
+# ==========================================
+# FULL LOGIN (1st Time Setup)
+# ==========================================
 @router.post("/kotak-login")
 async def connect_kotak_full(creds: KotakCredentials, current_user: dict = Depends(get_current_user)):
     try:
         print(f"🔄 Full Setup: Connecting Kotak Neo for User: {creds.name} (UCC: {creds.ucc})")
         
-        # ✅ NAKLI SECRET HATA DIYA - Ekdum original format
         client = NeoAPI(
             consumer_key=creds.consumer_key, 
             environment='prod'
@@ -30,6 +39,9 @@ async def connect_kotak_full(creds: KotakCredentials, current_user: dict = Depen
         
         client.totp_login(mobile_number=creds.mobile, ucc=creds.ucc, totp=creds.totp)
         client.totp_validate(mpin=creds.mpin)
+
+        # 🟢 YAHAN HAI MAIN FIX: Client memory mein save ho raha hai
+        KOTAK_SESSIONS[current_user["id"]] = client
 
         users_col = get_collection("users")
         await users_col.update_one(
@@ -53,6 +65,9 @@ async def connect_kotak_full(creds: KotakCredentials, current_user: dict = Depen
         raise HTTPException(status_code=400, detail=f"Broker Login Failed: {str(e)}")
 
 
+# ==========================================
+# DAILY TOTP LOGIN (Quick Setup)
+# ==========================================
 @router.post("/kotak-totp-login")
 async def connect_kotak_quick(req: KotakTotpOnly, current_user: dict = Depends(get_current_user)):
     try:
@@ -67,7 +82,6 @@ async def connect_kotak_quick(req: KotakTotpOnly, current_user: dict = Depends(g
         mpin = user_data.get("kotak_mpin")
         consumer_key = user_data.get("kotak_consumer_key")
 
-        # ✅ YAHAN SE BHI NAKLI SECRET HATA DIYA
         client = NeoAPI(
             consumer_key=consumer_key, 
             environment='prod'
@@ -75,6 +89,9 @@ async def connect_kotak_quick(req: KotakTotpOnly, current_user: dict = Depends(g
         
         client.totp_login(mobile_number=mobile, ucc=ucc, totp=req.totp)
         client.totp_validate(mpin=mpin)
+
+        # 🟢 YAHAN BHI MAIN FIX HAI: Daily session start hone par client memory mein save
+        KOTAK_SESSIONS[current_user["id"]] = client
 
         return {"status": "success", "message": "✅ Live Trading Session Started!"}
     

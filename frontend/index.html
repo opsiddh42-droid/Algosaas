@@ -186,7 +186,7 @@
             const successMsg = document.getElementById('signup-success');
             
             const name = document.getElementById('signup-name').value;
-            const mobile = document.getElementById('signup-mobile').value; // Naya Mobile field add kiya
+            const mobile = document.getElementById('signup-mobile').value; 
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
 
@@ -196,7 +196,6 @@
             successMsg.classList.add('hidden');
 
             try {
-                // Mobile data bhi payload mein bhej rahe hain
                 const response = await fetch(`${API_BASE_URL}/auth/signup`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -222,7 +221,7 @@
             }
         }
 
-        // 2. Handle Login 
+        // 2. Handle Login (Fixed to send JSON instead of URLSearchParams)
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
@@ -235,14 +234,11 @@
             errorMsg.classList.add('hidden');
 
             try {
-                const formData = new URLSearchParams();
-                formData.append('username', email); 
-                formData.append('password', password);
-
+                // Wapas JSON payload bhej rahe hain kyunki backend yahi chahta hai!
                 const response = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, password: password })
                 });
 
                 const data = await response.json();

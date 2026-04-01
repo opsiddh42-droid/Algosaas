@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Live Chart & Paper Trades | AlgoSaaS</title>
+    <title>Live Chart & Trades | AlgoSaaS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -22,12 +22,11 @@
     </script>
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; }
-        .hidden { display: none !important; }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
         
         /* Chart container height adjustments for mobile */
         #tv_chart_container { height: calc(100vh - 280px); width: 100%; }
-        #positions_panel { height: 220px; overflow-y: auto; }
+        #positions_panel { height: 280px; overflow-y: auto; padding-bottom: 20px;}
     </style>
 </head>
 <body class="h-screen flex flex-col">
@@ -55,7 +54,7 @@
     </header>
 
     <main class="w-full relative bg-[#131722] border-b border-slate-700" id="tv_chart_container">
-        </main>
+    </main>
 
     <section id="positions_panel" class="bg-darkBase p-2">
         <div class="flex justify-between items-center mb-2 px-1">
@@ -63,13 +62,15 @@
                 💼 Open Positions
                 <span class="w-2 h-2 bg-success rounded-full shadow-[0_0_5px_#10b981] animate-pulse"></span>
             </h3>
-            <button onclick="fetchPaperTrades()" class="text-xs text-primary hover:text-white transition">&#x21bb; Refresh</button>
+            <div class="flex gap-2">
+                <button onclick="fetchPaperTrades()" class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded border border-slate-600 hover:text-white transition">&#x21bb; Refresh</button>
+                <button onclick="panicExitAll()" class="text-[10px] font-black tracking-wide bg-danger text-white px-2 py-1 rounded shadow-[0_0_8px_rgba(239,68,68,0.6)] hover:bg-red-600 transition">🚨 EXIT ALL</button>
+            </div>
         </div>
 
         <div id="trades-container" class="space-y-2 pb-6">
             <div class="text-center text-xs text-slate-500 py-4" id="loading-msg">Fetching live trades...</div>
-            
-            </div>
+        </div>
     </section>
 
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
@@ -80,7 +81,7 @@
         let wsConnection = null;
 
         window.onload = () => {
-            // Check Mode
+            // Check Mode (Live or Paper)
             const mode = localStorage.getItem('trade_mode') || 'PAPER';
             const badge = document.getElementById('mode-badge');
             if(mode === 'REAL') {
@@ -91,7 +92,7 @@
             // Initialize Chart
             initChart("BSE:NIFTY");
             
-            // Start pulling paper trades data
+            // Start pulling trades data
             fetchPaperTrades();
             
             // Connect WebSocket for Live P&L Updates
@@ -103,10 +104,10 @@
             tvWidget = new TradingView.widget({
                 "autosize": true,
                 "symbol": symbol,
-                "interval": "5",       // 5 Min timeframe default
+                "interval": "5",       
                 "timezone": "Asia/Kolkata",
                 "theme": "dark",
-                "style": "1",          // Candles
+                "style": "1",          
                 "locale": "in",
                 "enable_publishing": false,
                 "backgroundColor": "#131722",
@@ -115,13 +116,8 @@
                 "hide_legend": false,
                 "save_image": false,
                 "container_id": "tv_chart_container",
-                "studies": [
-                    "Volume@tv-basicstudies"
-                ],
-                "disabled_features": [
-                    "header_symbol_search",
-                    "header_compare"
-                ]
+                "studies": ["Volume@tv-basicstudies"],
+                "disabled_features": ["header_symbol_search", "header_compare"]
             });
         }
 
@@ -132,13 +128,14 @@
 
         // --- FETCH TRADES FROM BACKEND ---
         async function fetchPaperTrades() {
-            // Hum backend me ek nayi API banayenge jo open paper trades bhejegi
             const container = document.getElementById('trades-container');
             const token = localStorage.getItem('saas_token');
-            if(!token) return;
+            if(!token) {
+                container.innerHTML = `<div class="text-center text-xs text-danger py-4">Please login first!</div>`;
+                return;
+            }
 
             try {
-                // TODO: Backend route for fetching trades
                 const response = await fetch(`${API_BASE_URL}/trades/open-positions?mode=${localStorage.getItem('trade_mode') || 'PAPER'}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -154,12 +151,12 @@
             }
         }
 
+        // --- RENDER TRADES HTML ---
         function renderTrades(positions) {
             const container = document.getElementById('trades-container');
             if(!positions || positions.length === 0) {
                 container.innerHTML = `<div class="text-center text-xs text-slate-500 py-4">No active positions</div>`;
-                document.getElementById('total-pnl').innerText = '₹0.00';
-                document.getElementById('total-pnl').className = 'text-lg font-black text-slate-300';
+                updateTotalPNL(0);
                 return;
             }
 
@@ -167,11 +164,11 @@
             let totalMtm = 0;
 
             positions.forEach(pos => {
-                // UI Logic based on live P&L
-                const pnl = pos.mtm || 0;
+                const pnl = pos.mtm || 0; 
                 totalMtm += pnl;
+                
                 const pnlColor = pnl >= 0 ? 'text-success' : 'text-danger';
-                const pnlSign = pnl >= 0 ? '+' : '';
+                const pnlSign = pnl > 0 ? '+' : '';
                 const posColor = pos.transaction === 'B' ? 'bg-success' : 'bg-danger';
                 const posText = pos.transaction === 'B' ? 'BUY' : 'SELL';
 
@@ -185,21 +182,24 @@
                         </div>
                         <div class="text-[10px] text-slate-400">
                             Avg: <span class="text-white">₹${(pos.entry_price || 0).toFixed(2)}</span> | 
-                            LTP: <span class="${pnlColor} font-bold">₹${(pos.ltp || 0).toFixed(2)}</span>
+                            LTP: <span class="${pnlColor} font-bold">₹${(pos.ltp || pos.entry_price || 0).toFixed(2)}</span>
                         </div>
                     </div>
                     <div class="text-right flex flex-col items-end">
-                        <span class="text-sm font-black ${pnlColor}">${pnlSign} ₹${Math.abs(pnl).toFixed(2)}</span>
+                        <span class="text-sm font-black ${pnlColor}">${pnlSign}₹${Math.abs(pnl).toFixed(2)}</span>
                         <button onclick="squareOff('${pos.id}')" class="mt-1 text-[9px] bg-slate-800 text-slate-300 border border-slate-600 px-2 py-1 rounded hover:bg-danger hover:text-white hover:border-danger transition">SQUARE OFF</button>
                     </div>
                 </div>`;
                 container.innerHTML += html;
             });
 
-            // Update Total Header
+            updateTotalPNL(totalMtm);
+        }
+
+        function updateTotalPNL(amount) {
             const totalEl = document.getElementById('total-pnl');
-            totalEl.innerText = `${totalMtm >= 0 ? '+' : ''} ₹${Math.abs(totalMtm).toFixed(2)}`;
-            totalEl.className = `text-lg font-black transition-colors drop-shadow-md ${totalMtm >= 0 ? 'text-success' : 'text-danger'}`;
+            totalEl.innerText = `${amount >= 0 ? '+' : '-'} ₹${Math.abs(amount).toFixed(2)}`;
+            totalEl.className = `text-lg font-black transition-colors drop-shadow-md ${amount >= 0 ? 'text-success' : 'text-danger'}`;
         }
 
         // --- WEBSOCKET FOR LIVE TICK UPDATES ---
@@ -207,35 +207,54 @@
             const token = localStorage.getItem('saas_token');
             if(!token) return;
 
-            wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}&mode=${localStorage.getItem('trade_mode') || 'PAPER'}`);
+            const mode = localStorage.getItem('trade_mode') || 'PAPER';
+            wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}&mode=${mode}`);
             
             wsConnection.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                // Agar WebSocket humein positions array aur total_pnl de
-                if(data.positions) {
-                    renderTrades(data.positions);
-                }
+                try {
+                    const data = JSON.parse(event.data);
+                    if(data.positions) {
+                        renderTrades(data.positions);
+                    }
+                } catch(e) { console.log("WS Parse Error", e); }
             };
 
             wsConnection.onclose = () => {
-                setTimeout(connectWebSocket, 5000); 
+                setTimeout(connectWebSocket, 5000); // Auto Reconnect
             };
         }
 
-        // --- SQUARE OFF FUNCTION ---
+        // --- PANIC EXIT ALL ---
+        async function panicExitAll() {
+            if(confirm("🚨 DANGER! Are you sure you want to SQUARE OFF ALL positions?")) {
+                const token = localStorage.getItem('saas_token');
+                try {
+                    const mode = localStorage.getItem('trade_mode') || 'PAPER';
+                    const res = await fetch(`${API_BASE_URL}/trades/exit-all?mode=${mode}`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await res.json();
+                    alert(data.message || "Positions Exited!");
+                    fetchPaperTrades(); 
+                } catch(e) {
+                    alert("Failed to execute Panic Exit.");
+                }
+            }
+        }
+
+        // --- SINGLE SQUARE OFF ---
         async function squareOff(tradeId) {
             if(confirm("Square off this position at Market Price?")) {
                 const token = localStorage.getItem('saas_token');
                 try {
-                    // Backend route trigger hoga (abhi banayenge)
                     const res = await fetch(`${API_BASE_URL}/trades/close-position`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                         body: JSON.stringify({ trade_id: tradeId, mode: localStorage.getItem('trade_mode') || 'PAPER' })
                     });
                     if(res.ok) {
-                        alert("Position Closed!");
-                        fetchPaperTrades(); // Refresh list
+                        fetchPaperTrades(); 
                     }
                 } catch(e) {
                     alert("Failed to close position.");

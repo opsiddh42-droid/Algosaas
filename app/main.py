@@ -1,15 +1,15 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # 🟢 FIX 1: Chhota 'from' kar diya
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # 🟢 FIX: Capital 'From' ko small 'from' kiya
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
 from app.engine.scheduler import start_scheduler
 
-# ✅ Purane 'manager' ki jagah Naya Live P&L engine import kiya
+# ✅ Live P&L engine import kiya
 from app.websockets.stream import stream_live_pnl
 
-# 📦 Saare Routers Import Karein
-from app.api.v1 import auth, broker, trades, market, strategy
+# 📦 Saare Routers Import Karein (🟢 ALGO bhi add kiya)
+from app.api.v1 import auth, broker, trades, market, strategy, algo
 
 # 🚀 FastAPI App Initialize
 app = FastAPI(
@@ -43,6 +43,7 @@ app.include_router(broker.router, prefix=f"{settings.API_V1_STR}/broker", tags=[
 app.include_router(trades.router, prefix=f"{settings.API_V1_STR}/trades", tags=["Trade Execution"])
 app.include_router(market.router, prefix=f"{settings.API_V1_STR}/market", tags=["Market Data"])
 app.include_router(strategy.router, prefix=f"{settings.API_V1_STR}/strategy", tags=["Strategy Builder"])
+app.include_router(algo.router, prefix=f"{settings.API_V1_STR}/algo", tags=["Algo Bot"]) # 🟢 NAYA ALGO ROUTER
 
 # --- 🩺 HEALTH CHECK ROUTE ---
 @app.get("/")
@@ -56,7 +57,6 @@ async def root():
     }
 
 # --- 📡 WEBSOCKET ROUTE (For Live Data) ---
-# 🟢 FIX 2: Duplicate hata diya, sirf sahi wala (Token + Mode) rakha hai
 @app.websocket("/ws/live-data")
 async def websocket_endpoint(websocket: WebSocket, token: str, mode: str = "PAPER"):
     await websocket.accept()

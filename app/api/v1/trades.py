@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from neo_api_client import NeoAPI
 from app.api.deps import get_current_user
 from app.core.database import get_collection
+from app.core.sessions import KOTAK_SESSIONS  # 🟢 FIX 1: Zinda session yahan import kiya
 from bson import ObjectId
 from datetime import datetime
 import time
@@ -23,16 +23,12 @@ class ClosePosRequest(BaseModel):
     trade_id: str
     mode: str = "PAPER"
 
-# --- 2. HELPER: GET KOTAK CLIENT ---
-def get_kotak_client(db_user: dict):
-    try:
-        client = NeoAPI(
-            consumer_key=db_user["kotak_consumer_key"], 
-            environment='prod'
-        )
-        return client
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Failed to initialize Broker Client. Session might be expired.")
+# --- 2. HELPER: GET KOTAK CLIENT (Fixed) ---
+def get_kotak_client(user_id: str):
+    # 🟢 FIX 1: Naya client banane ki jagah, zinda memory session uthaya
+    if user_id not in KOTAK_SESSIONS:
+        raise HTTPException(status_code=401, detail="Kotak Live Session is OFF! Please click 'Start Daily Session' on Dashboard.")
+    return KOTAK_SESSIONS[user_id]
 
 
 # ==========================================
@@ -47,7 +43,8 @@ async def place_trade(order: OrderModel, current_user: dict = Depends(get_curren
         if not db_user or db_user.get("kotak_status") != "Active":
             raise HTTPException(status_code=400, detail="Broker profile not connected.")
 
-        client = get_kotak_client(db_user)
+        # Zinda client laya
+        client = get_kotak_client(current_user["id"])
 
         print(f"🚀 Placing LIMIT Order: {order.transaction_type} {order.quantity} {order.trading_symbol} @ {order.price}")
 
@@ -94,14 +91,14 @@ async def panic_exit_all(mode: str = "PAPER", current_user: dict = Depends(get_c
             return {"status": "success", "message": f"🚨 Paper Panic Exit Complete! {result.modified_count} virtual positions squared off."}
 
         else:
-            # 💸 REAL MODE EXIT ALL (User's Smart Buffer Limit Logic)
+            # 💸 REAL MODE EXIT ALL 
             users_col = get_collection("users")
             db_user = await users_col.find_one({"id": current_user["id"]})
 
             if not db_user or db_user.get("kotak_status") != "Active":
                 raise HTTPException(status_code=400, detail="Broker profile not connected.")
 
-            client = get_kotak_client(db_user)
+            client = get_kotak_client(current_user["id"])
             print("🚨 REAL PANIC EXIT INITIATED! Fetching open positions...")
 
             positions_response = client.positions()
@@ -126,8 +123,11 @@ async def panic_exit_all(mode: str = "PAPER", current_user: dict = Depends(get_c
                 try:
                     if token:
                         q = client.quotes(instrument_tokens=[{"instrument_token": str(token), "exchange_segment": exch}], quote_type="all")
-                        quote_data = q.get('data', []) if isinstance(q, dict) else q
-                        ltp = float(quote_data[0].get('ltp', quote_data[0].get('lastPrice', 0)))
+                        # 🟢 FIX 2: Bulletproof List vs Dict Parser
+                        if isinstance(q, list) and len(q) > 0:
+                            ltp = float(q[0].get('ltp', q[0].get('lastPrice', 0)))
+                        elif isinstance(q, dict) and 'data' in q and len(q['data']) > 0:
+                            ltp = float(q['data'][0].get('ltp', q['data'][0].get('lastPrice', 0)))
                 except:
                     pass
 
@@ -135,7 +135,7 @@ async def panic_exit_all(mode: str = "PAPER", current_user: dict = Depends(get_c
                     ltp = float(pos.get('buyAmt', 0)) 
 
                 if net_qty > 0:
-                    # SELL (15% Niche)
+                    # SELL (15% Niche - Limit)
                     safe_limit_price = round(ltp * 0.85, 1) 
                     sell_exit_orders.append({
                         "exchange_segment": exch, "product": prod, "price": str(safe_limit_price), "order_type": "L",
@@ -143,7 +143,7 @@ async def panic_exit_all(mode: str = "PAPER", current_user: dict = Depends(get_c
                         "transaction_type": "S", "amo": "NO"
                     })
                 elif net_qty < 0:
-                    # BUY (15% Upar)
+                    # BUY (15% Upar - Limit)
                     safe_limit_price = round(ltp * 1.15, 1) 
                     buy_exit_orders.append({
                         "exchange_segment": exch, "product": prod, "price": str(safe_limit_price), "order_type": "L",
@@ -152,7 +152,7 @@ async def panic_exit_all(mode: str = "PAPER", current_user: dict = Depends(get_c
                     })
 
             exit_count = 0
-            # Pehle Buy orders (margin free karne ke liye), phir Sell orders (As requested)
+            # 🟢 Aapke rule ke hisab se: Pehle Buy Exit Orders run honge, phir Sell!
             for order in buy_exit_orders:
                 print(f"Panic BUY: {order['trading_symbol']} at Limit {order['price']}")
                 client.place_order(**order)
@@ -203,7 +203,7 @@ async def get_open_positions(mode: str = "PAPER", current_user: dict = Depends(g
             users_col = get_collection("users")
             db_user = await users_col.find_one({"id": current_user["id"]})
             if db_user and db_user.get("kotak_status") == "Active":
-                client = get_kotak_client(db_user)
+                client = get_kotak_client(current_user["id"])
                 pos_resp = client.positions()
                 if isinstance(pos_resp, dict) and 'data' in pos_resp:
                     for p in pos_resp['data']:

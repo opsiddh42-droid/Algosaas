@@ -37,7 +37,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         df.columns = df.columns.astype(str)
         
         # =========================================
-        # 1. FETCH FUTURE PRICE (Fixed Parsing)
+        # 1. FETCH FUTURE PRICE 
         # =========================================
         search_sym = conf["FutureSymbol"]
         fut_row = df[df["5"] == search_sym]
@@ -53,7 +53,6 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         except Exception as e:
             raise Exception(f"RAW API EXCEPTION (Future Quotes): {str(e)}")
 
-        # 🟢 THE REAL FIX: Checking if it's a List or a Dict
         if isinstance(fut_resp, list) and len(fut_resp) > 0:
             spot_price = float(fut_resp[0].get('ltp', fut_resp[0].get('lastPrice', 0)))
         elif isinstance(fut_resp, dict) and 'data' in fut_resp and len(fut_resp['data']) > 0:
@@ -70,19 +69,22 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         strikes = [atm + (i * gap) for i in range(-10, 11)]
 
         # =========================================
-        # 3. SEARCH EXPIRY
+        # 3. EXACT WEEKLY EXPIRY SEARCH (Aapka Logic!)
         # =========================================
         now_ist = datetime.now(IST)
         all_symbols = set(df["7"].astype(str).values)
         expiry_date_str = None
         
+        # Aaj se lekar agle 45 din tak ek-ek din check karega
         for i in range(0, 45):
             test_date = now_ist + timedelta(days=i)
+            # Format banayega: 02APR26, 03APR26, etc.
             d_str = f"{test_date.strftime('%d')}{test_date.strftime('%b').upper()}{test_date.strftime('%y')}"
             
             check_sym_1 = f"{symbol}{d_str}{atm}.00CE"
             check_sym_2 = f"{symbol}{d_str}{atm}CE"
             
+            # Jo bhi sabse pehli date DB mein match ho gayi, wo Weekly Expiry hai!
             if check_sym_1 in all_symbols or check_sym_2 in all_symbols:
                 expiry_date_str = d_str
                 break
@@ -116,14 +118,13 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
             raise Exception(f"RAW ERROR: Option tokens list is empty for prefix {prefix}.")
 
         # =========================================
-        # 5. FETCH LIVE PREMIUMS (Fixed Parsing)
+        # 5. FETCH LIVE PREMIUMS
         # =========================================
         try:
             opt_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
         except Exception as e:
             raise Exception(f"RAW API EXCEPTION (Options Quotes): {str(e)}")
              
-        # 🟢 FIX: Same List vs Dict fix for Option chain premiums
         items = opt_resp if isinstance(opt_resp, list) else opt_resp.get('data', [])
         
         if not items:

@@ -8,11 +8,20 @@ from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
-# 🟢 CONFIG MEIN SPOT TOKENS WAPAS ADD KIYE FALLBACK KE LIYE
+# 🟢 HARDCODED FUTURE SYMBOLS (Aapke bataye hue!)
 INDICES_CONFIG = {
-    "NIFTY": {"Exchange": "nse_fo", "SpotToken": "256265", "SpotExch": "nse_cm", "Gap": 50},
-    "BANKNIFTY": {"Exchange": "nse_fo", "SpotToken": "26000", "SpotExch": "nse_cm", "Gap": 100},
-    "SENSEX": {"Exchange": "bse_fo", "SpotToken": "1", "SpotExch": "bse_cm", "Gap": 100}
+    "NIFTY": {
+        "Exchange": "nse_fo", "SpotToken": "256265", "SpotExch": "nse_cm", "Gap": 50, 
+        "FutureSymbol": "NIFTY26APRFUT"
+    },
+    "BANKNIFTY": {
+        "Exchange": "nse_fo", "SpotToken": "26000", "SpotExch": "nse_cm", "Gap": 100, 
+        "FutureSymbol": "BANKNIFTY26APRFUT"
+    },
+    "SENSEX": {
+        "Exchange": "bse_fo", "SpotToken": "1", "SpotExch": "bse_cm", "Gap": 100, 
+        "FutureSymbol": "SENSEX26APRFUT"
+    }
 }
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -37,21 +46,17 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
 
         df.columns = df.columns.astype(str)
         
-        now_ist = datetime.now(IST)
-        next_month_date = now_ist.replace(day=28) + timedelta(days=5)
-        months_to_try = [now_ist, next_month_date]
-        
         spot_price = 0.0
         
-        # 🟢 STEP 1: PEHLE FUTURE PRICE TRY KARO (Best for Nifty/BankNifty)
-        for test_date in months_to_try:
-            yy = test_date.strftime("%y")         
-            mon = test_date.strftime("%b").upper() 
-            search_sym = f"{symbol}{yy}{mon}FUT" 
-            
-            fut_row = df[df["5"] == search_sym]
-            if fut_row.empty: continue
-                
+        # =========================================
+        # 🟢 STEP 1: DIRECT HARDCODED FUTURE SYMBOL CHECK
+        # =========================================
+        search_sym = conf["FutureSymbol"]
+        print(f"🔍 Searching Hardcoded Future: {search_sym}")
+        
+        fut_row = df[df["5"] == search_sym]
+        
+        if not fut_row.empty:
             tk = str(int(float(fut_row.iloc[0]["0"])))
             try:
                 q = client.quotes(instrument_tokens=[{"instrument_token": tk, "exchange_segment": conf["Exchange"]}], quote_type="all")
@@ -59,26 +64,31 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
                     price = float(q['data'][0].get('ltp', q['data'][0].get('lastPrice', 0)))
                     if price > 0:
                         spot_price = price
-                        break 
-            except Exception:
-                pass
+                        print(f"✅ Future Price Found: {spot_price}")
+            except Exception as e:
+                print(f"❌ Future Quote Error: {e}")
+        else:
+            print(f"⚠️ Warning: {search_sym} MongoDB Master Data mein nahi mila!")
 
-        # 🟢 STEP 2: HYBRID FALLBACK -> AGAR FUTURE 0 HAI (SENSEX), TOH SPOT PRICE UTHAO!
+        # =========================================
+        # 🟢 STEP 2: SPOT PRICE FALLBACK (Agar Future fail ho)
+        # =========================================
         if spot_price == 0:
+            print(f"⚠️ Future 0 mila for {symbol}, trying Spot Price Fallback...")
             try:
-                print(f"⚠️ Future 0 mila for {symbol}, trying Spot Price Fallback...")
                 spot_resp = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
                 if spot_resp and isinstance(spot_resp, dict) and 'data' in spot_resp and len(spot_resp['data']) > 0:
                     spot_price = float(spot_resp['data'][0].get('ltp', spot_resp['data'][0].get('lastPrice', 0)))
+                    print(f"✅ Spot Price Found: {spot_price}")
             except Exception as e:
-                print(f"Spot Error: {e}")
+                print(f"❌ Spot Error: {e}")
 
-        # Agar dono zero nikle toh API ya Token ka issue hai
+        # Agar dono zero nikle toh error throw karo
         if spot_price == 0: 
-            raise Exception(f"Kotak API ne {symbol} ke Future aur Spot dono ka LTP 0 diya hai. Token check karein.")
+            raise Exception(f"Kotak API ne {symbol} ke Future ({search_sym}) aur Spot dono ka LTP 0 diya hai. Ya toh market band hai, ya DB/Token update maang raha hai.")
 
         # =========================================
-        # 🟢 GET ATM PRICE
+        # 🟢 CALCULATE ATM
         # =========================================
         gap = conf["Gap"]
         atm = round(spot_price / gap) * gap
@@ -87,6 +97,7 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         # =========================================
         # 🟢 SEARCH EXPIRY (IST Time par)
         # =========================================
+        now_ist = datetime.now(IST)
         all_symbols = set(df["7"].astype(str).values)
         expiry_date_str = None
         

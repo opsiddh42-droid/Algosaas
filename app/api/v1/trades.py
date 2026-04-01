@@ -2,109 +2,116 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from app.core.database import get_collection
-from app.core.sessions import KOTAK_SESSIONS  # 🟢 FIX 1: Zinda session yahan import kiya
+from app.core.sessions import KOTAK_SESSIONS
 from bson import ObjectId
 from datetime import datetime
 import time
 
 router = APIRouter()
 
-# --- 1. MODELS ---
+# --- 1. MODELS (Added Stoploss & Target) ---
 class OrderModel(BaseModel):
     exchange_segment: str = "nse_fo"
     trading_symbol: str
-    transaction_type: str  # "B" for Buy, "S" for Sell
+    transaction_type: str  
     quantity: str
-    order_type: str = "L"  # ✅ Ab default "L" (Limit) rahega
-    price: str             # ✅ Price dena mandatory hai
+    order_type: str = "L"  
+    price: str             
     product: str = "NRML"
+    token: str = "" 
+    stoploss: str = "0"  # 🟢 Naya Field
+    target: str = "0"    # 🟢 Naya Field
 
 class ClosePosRequest(BaseModel):
     trade_id: str
     mode: str = "PAPER"
 
-# --- 2. HELPER: GET KOTAK CLIENT (Fixed) ---
 def get_kotak_client(user_id: str):
-    # 🟢 FIX 1: Naya client banane ki jagah, zinda memory session uthaya
     if user_id not in KOTAK_SESSIONS:
-        raise HTTPException(status_code=401, detail="Kotak Live Session is OFF! Please click 'Start Daily Session' on Dashboard.")
+        raise HTTPException(status_code=401, detail="Kotak Session is OFF!")
     return KOTAK_SESSIONS[user_id]
 
-
 # ==========================================
-# ROUTE 1: PLACE SINGLE ORDER (LIMIT)
+# 🟢 ROUTE 1: PLACE ORDER (PAPER + REAL)
 # ==========================================
 @router.post("/place-order")
-async def place_trade(order: OrderModel, current_user: dict = Depends(get_current_user)):
+async def place_trade(order: OrderModel, mode: str = "PAPER", current_user: dict = Depends(get_current_user)):
     try:
-        users_col = get_collection("users")
-        db_user = await users_col.find_one({"id": current_user["id"]})
-
-        if not db_user or db_user.get("kotak_status") != "Active":
-            raise HTTPException(status_code=400, detail="Broker profile not connected.")
-
-        # Zinda client laya
-        client = get_kotak_client(current_user["id"])
-
-        print(f"🚀 Placing LIMIT Order: {order.transaction_type} {order.quantity} {order.trading_symbol} @ {order.price}")
-
-        # Kotak API - Limit Order
-        resp = client.place_order(
-            exchange_segment=order.exchange_segment,
-            product=order.product,
-            price=str(order.price),
-            order_type="L",  # Strictly Limit
-            quantity=order.quantity,
-            validity="DAY",
-            trading_symbol=order.trading_symbol,
-            transaction_type=order.transaction_type,
-            amo="NO"
-        )
-
-        if isinstance(resp, dict) and 'nOrdNo' in resp:
-            return {
-                "status": "success", 
-                "message": f"Limit Order Placed! ID: {resp['nOrdNo']}", 
-                "order_id": resp['nOrdNo']
+        if mode == "PAPER":
+            # 📝 PAPER TRADE LOGIC (Saves SL and Target)
+            paper_col = get_collection("paper_trades")
+            
+            trade_doc = {
+                "user_id": current_user["id"],
+                "status": "OPEN",
+                "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "legs": [
+                    {
+                        "symbol": order.trading_symbol,
+                        "token": order.token,
+                        "transaction": order.transaction_type,
+                        "qty": int(order.quantity),
+                        "entry_price": float(order.price),
+                        "ltp": float(order.price),
+                        "sl": float(order.stoploss),     # 🟢 DB mein SL save
+                        "target": float(order.target),   # 🟢 DB mein Target save
+                        "status": "OPEN"
+                    }
+                ]
             }
+            
+            await paper_col.insert_one(trade_doc)
+            return {"status": "success", "message": f"Paper Order Saved! SL: {order.stoploss}, TGT: {order.target}"}
+
         else:
-            raise Exception(str(resp))
+            # 💸 REAL TRADE LOGIC
+            users_col = get_collection("users")
+            db_user = await users_col.find_one({"id": current_user["id"]})
+            if not db_user or db_user.get("kotak_status") != "Active":
+                raise HTTPException(status_code=400, detail="Broker profile not connected.")
+
+            client = get_kotak_client(current_user["id"])
+            
+            # Real Kotak API call
+            resp = client.place_order(
+                exchange_segment=order.exchange_segment,
+                product=order.product,
+                price=str(order.price),
+                order_type="L",  
+                quantity=order.quantity,
+                validity="DAY",
+                trading_symbol=order.trading_symbol,
+                transaction_type=order.transaction_type,
+                amo="NO"
+            )
+
+            if isinstance(resp, dict) and 'nOrdNo' in resp:
+                return {"status": "success", "message": f"Real Order Placed! ID: {resp['nOrdNo']}"}
+            else:
+                raise Exception(str(resp))
 
     except Exception as e:
-        print(f"❌ Order Execution Failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Order Failed: {str(e)}")
 
-
 # ==========================================
-# ROUTE 2: PANIC EXIT ALL (PAPER + REAL SMART BUFFER)
+# ROUTE 2: PANIC EXIT ALL
 # ==========================================
 @router.post("/exit-all")
 async def panic_exit_all(mode: str = "PAPER", current_user: dict = Depends(get_current_user)):
     try:
         if mode == "PAPER":
-            # 📝 PAPER MODE EXIT ALL
             paper_col = get_collection("paper_trades")
             result = await paper_col.update_many(
                 {"user_id": current_user["id"], "status": "OPEN"},
                 {"$set": {"status": "CLOSED", "exit_time": datetime.now().strftime("%H:%M")}}
             )
-            return {"status": "success", "message": f"🚨 Paper Panic Exit Complete! {result.modified_count} virtual positions squared off."}
-
+            return {"status": "success", "message": f"🚨 Paper Exit Complete!"}
         else:
-            # 💸 REAL MODE EXIT ALL 
-            users_col = get_collection("users")
-            db_user = await users_col.find_one({"id": current_user["id"]})
-
-            if not db_user or db_user.get("kotak_status") != "Active":
-                raise HTTPException(status_code=400, detail="Broker profile not connected.")
-
             client = get_kotak_client(current_user["id"])
-            print("🚨 REAL PANIC EXIT INITIATED! Fetching open positions...")
-
             positions_response = client.positions()
             
             if not isinstance(positions_response, dict) or 'data' not in positions_response:
-                return {"status": "success", "message": "No open positions found to exit."}
+                return {"status": "success", "message": "No open positions found."}
 
             open_positions = positions_response['data']
             buy_exit_orders = []   
@@ -114,75 +121,48 @@ async def panic_exit_all(mode: str = "PAPER", current_user: dict = Depends(get_c
                 net_qty = int(pos.get('netTrdQty', pos.get('flldQty', 0)))
                 if net_qty == 0: continue 
                     
-                sym = pos.get('trdSym', pos.get('trading_symbol', ''))
-                exch = pos.get('exSeg', pos.get('exchange_segment', 'nse_fo'))
-                prod = pos.get('prd', pos.get('product', 'NRML'))
-                token = pos.get('tok', pos.get('instrument_token', ''))
+                sym = pos.get('trdSym')
+                exch = pos.get('exSeg')
+                prod = pos.get('prd')
+                token = pos.get('tok')
 
                 ltp = 0.0
                 try:
                     if token:
                         q = client.quotes(instrument_tokens=[{"instrument_token": str(token), "exchange_segment": exch}], quote_type="all")
-                        # 🟢 FIX 2: Bulletproof List vs Dict Parser
-                        if isinstance(q, list) and len(q) > 0:
-                            ltp = float(q[0].get('ltp', q[0].get('lastPrice', 0)))
-                        elif isinstance(q, dict) and 'data' in q and len(q['data']) > 0:
-                            ltp = float(q['data'][0].get('ltp', q['data'][0].get('lastPrice', 0)))
-                except:
-                    pass
+                        if isinstance(q, list) and len(q) > 0: ltp = float(q[0].get('ltp', 0))
+                        elif isinstance(q, dict) and 'data' in q and len(q['data']) > 0: ltp = float(q['data'][0].get('ltp', 0))
+                except: pass
 
-                if ltp == 0:
-                    ltp = float(pos.get('buyAmt', 0)) 
+                if ltp == 0: ltp = float(pos.get('buyAmt', 0)) 
 
                 if net_qty > 0:
-                    # SELL (15% Niche - Limit)
-                    safe_limit_price = round(ltp * 0.85, 1) 
-                    sell_exit_orders.append({
-                        "exchange_segment": exch, "product": prod, "price": str(safe_limit_price), "order_type": "L",
-                        "quantity": str(abs(net_qty)), "validity": "DAY", "trading_symbol": sym,
-                        "transaction_type": "S", "amo": "NO"
-                    })
+                    sell_exit_orders.append({"exchange_segment": exch, "product": prod, "price": str(round(ltp * 0.85, 1)), "order_type": "L", "quantity": str(abs(net_qty)), "validity": "DAY", "trading_symbol": sym, "transaction_type": "S", "amo": "NO"})
                 elif net_qty < 0:
-                    # BUY (15% Upar - Limit)
-                    safe_limit_price = round(ltp * 1.15, 1) 
-                    buy_exit_orders.append({
-                        "exchange_segment": exch, "product": prod, "price": str(safe_limit_price), "order_type": "L",
-                        "quantity": str(abs(net_qty)), "validity": "DAY", "trading_symbol": sym,
-                        "transaction_type": "B", "amo": "NO"
-                    })
+                    buy_exit_orders.append({"exchange_segment": exch, "product": prod, "price": str(round(ltp * 1.15, 1)), "order_type": "L", "quantity": str(abs(net_qty)), "validity": "DAY", "trading_symbol": sym, "transaction_type": "B", "amo": "NO"})
 
             exit_count = 0
-            # 🟢 Aapke rule ke hisab se: Pehle Buy Exit Orders run honge, phir Sell!
             for order in buy_exit_orders:
-                print(f"Panic BUY: {order['trading_symbol']} at Limit {order['price']}")
                 client.place_order(**order)
                 exit_count += 1
                 time.sleep(0.2) 
-
             for order in sell_exit_orders:
-                print(f"Panic SELL: {order['trading_symbol']} at Limit {order['price']}")
                 client.place_order(**order)
                 exit_count += 1
                 time.sleep(0.2)
 
-            if exit_count == 0:
-                return {"status": "success", "message": "No active positions to exit."}
-
-            return {"status": "success", "message": f"🚨 Real Panic Exit Complete! {exit_count} positions squared off via Safe Limit."}
+            return {"status": "success", "message": f"🚨 Real Exit Complete! {exit_count} positions closed."}
 
     except Exception as e:
-        print(f"❌ Panic Exit Failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Panic Exit Failed: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==========================================
-# ROUTE 3: GET OPEN POSITIONS (CHART PAGE KE LIYE)
+# ROUTE 3: GET OPEN POSITIONS 
 # ==========================================
 @router.get("/open-positions")
 async def get_open_positions(mode: str = "PAPER", current_user: dict = Depends(get_current_user)):
     try:
         positions_data = []
-        
         if mode == "PAPER":
             paper_col = get_collection("paper_trades")
             open_trades = await paper_col.find({"user_id": current_user["id"], "status": "OPEN"}).to_list(length=100)
@@ -196,10 +176,11 @@ async def get_open_positions(mode: str = "PAPER", current_user: dict = Depends(g
                             "token": leg["token"],
                             "transaction": leg["transaction"],
                             "qty": leg["qty"],
-                            "entry_price": leg["entry_price"]
+                            "entry_price": leg["entry_price"],
+                            "sl": leg.get("sl", 0),          # Frontend ko bhej rahe hain
+                            "target": leg.get("target", 0)   # Frontend ko bhej rahe hain
                         })
         else:
-            # REAL MODE LOGIC
             users_col = get_collection("users")
             db_user = await users_col.find_one({"id": current_user["id"]})
             if db_user and db_user.get("kotak_status") == "Active":
@@ -217,14 +198,12 @@ async def get_open_positions(mode: str = "PAPER", current_user: dict = Depends(g
                                 "qty": abs(net_qty),
                                 "entry_price": float(p.get('buyAmt', 0)) / abs(net_qty) if net_qty > 0 else float(p.get('sellAmt', 0)) / abs(net_qty)
                             })
-
         return {"status": "success", "positions": positions_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ==========================================
-# ROUTE 4: SINGLE SQUARE OFF (CHART BUTTON)
+# ROUTE 4: SINGLE SQUARE OFF
 # ==========================================
 @router.post("/close-position")
 async def close_position(req: ClosePosRequest, current_user: dict = Depends(get_current_user)):
@@ -237,7 +216,6 @@ async def close_position(req: ClosePosRequest, current_user: dict = Depends(get_
             )
             return {"status": "success", "message": "Paper Position Closed"}
         else:
-            # TODO: Yahan aap Kotak ka single position exit code jod sakte hain baad mein
             return {"status": "success", "message": "Real Position Square Off Logic Pending"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

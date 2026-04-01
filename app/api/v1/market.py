@@ -8,20 +8,19 @@ from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
+# 🟢 CONFIG MEIN SPOT TOKENS WAPAS ADD KIYE FALLBACK KE LIYE
 INDICES_CONFIG = {
-    "NIFTY": {"Exchange": "nse_fo", "Gap": 50},
-    "BANKNIFTY": {"Exchange": "nse_fo", "Gap": 100},
-    "SENSEX": {"Exchange": "bse_fo", "Gap": 100}
+    "NIFTY": {"Exchange": "nse_fo", "SpotToken": "256265", "SpotExch": "nse_cm", "Gap": 50},
+    "BANKNIFTY": {"Exchange": "nse_fo", "SpotToken": "26000", "SpotExch": "nse_cm", "Gap": 100},
+    "SENSEX": {"Exchange": "bse_fo", "SpotToken": "1", "SpotExch": "bse_cm", "Gap": 100}
 }
 
-# 🟢 INDIA TIMEZONE FIX (UTC + 5:30)
 IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_kotak_client(user_id: str):
     if user_id not in KOTAK_SESSIONS:
         raise Exception("Kotak Live Session is OFF! Please click 'Start Daily Session' on Dashboard.")
     return KOTAK_SESSIONS[user_id]
-
 
 @router.get("/option-chain")
 async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(get_current_user)):
@@ -38,42 +37,45 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
 
         df.columns = df.columns.astype(str)
         
-        # 🟢 SMART FUTURE FINDER (IST TIME + MONTH ROLLOVER)
         now_ist = datetime.now(IST)
-        
-        # Hum 2 mahine test karenge: Current aur Next (agar current expire ho gaya ho)
         next_month_date = now_ist.replace(day=28) + timedelta(days=5)
         months_to_try = [now_ist, next_month_date]
         
         spot_price = 0.0
-        fut_token = None
-        search_sym = ""
         
+        # 🟢 STEP 1: PEHLE FUTURE PRICE TRY KARO (Best for Nifty/BankNifty)
         for test_date in months_to_try:
             yy = test_date.strftime("%y")         
             mon = test_date.strftime("%b").upper() 
-            search_sym = f"{symbol}{yy}{mon}FUT" # Pehle MAR check karega, fail hua toh APR
+            search_sym = f"{symbol}{yy}{mon}FUT" 
             
             fut_row = df[df["5"] == search_sym]
-            if fut_row.empty:
-                continue
+            if fut_row.empty: continue
                 
             tk = str(int(float(fut_row.iloc[0]["0"])))
-            
-            # API hit karke check karo kya yeh future zinda hai?
             try:
                 q = client.quotes(instrument_tokens=[{"instrument_token": tk, "exchange_segment": conf["Exchange"]}], quote_type="all")
                 if q and isinstance(q, dict) and 'data' in q and len(q['data']) > 0:
                     price = float(q['data'][0].get('ltp', q['data'][0].get('lastPrice', 0)))
                     if price > 0:
                         spot_price = price
-                        fut_token = tk
-                        break # Valid price mil gaya, loop tod do!
+                        break 
             except Exception:
                 pass
 
+        # 🟢 STEP 2: HYBRID FALLBACK -> AGAR FUTURE 0 HAI (SENSEX), TOH SPOT PRICE UTHAO!
+        if spot_price == 0:
+            try:
+                print(f"⚠️ Future 0 mila for {symbol}, trying Spot Price Fallback...")
+                spot_resp = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
+                if spot_resp and isinstance(spot_resp, dict) and 'data' in spot_resp and len(spot_resp['data']) > 0:
+                    spot_price = float(spot_resp['data'][0].get('ltp', spot_resp['data'][0].get('lastPrice', 0)))
+            except Exception as e:
+                print(f"Spot Error: {e}")
+
+        # Agar dono zero nikle toh API ya Token ka issue hai
         if spot_price == 0: 
-            raise Exception(f"Failed to fetch Future Price. Checked symbols like {search_sym}. Kotak API returned 0.")
+            raise Exception(f"Kotak API ne {symbol} ke Future aur Spot dono ka LTP 0 diya hai. Token check karein.")
 
         # =========================================
         # 🟢 GET ATM PRICE

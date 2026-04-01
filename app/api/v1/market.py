@@ -7,18 +7,18 @@ import pandas as pd
 from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
-
-INDICES_CONFIG = {
-    "NIFTY": {"Exchange": "nse_fo", "FutureSymbol": "NIFTY26APRFUT", "Gap": 50},
-    "BANKNIFTY": {"Exchange": "nse_fo", "FutureSymbol": "BANKNIFTY26APRFUT", "Gap": 100},
-    "SENSEX": {"Exchange": "bse_fo", "FutureSymbol": "SENSEX26APRFUT", "Gap": 100}
-}
-
 IST = timezone(timedelta(hours=5, minutes=30))
+
+# 🟢 CONFIGURATION EXACTLY AS PER YOUR SCRIPT
+INDICES_CONFIG = {
+    "NIFTY": {"Exchange": "nse_fo", "Gap": 50, "SpotToken": "Nifty 50", "SpotExch": "nse_cm"},
+    "BANKNIFTY": {"Exchange": "nse_fo", "Gap": 100, "SpotToken": "Nifty Bank", "SpotExch": "nse_cm"},
+    "SENSEX": {"Exchange": "bse_fo", "Gap": 100, "SpotToken": "SENSEX", "SpotExch": "nse_cm"} # Fallback to bse_cm handled in code
+}
 
 def get_kotak_client(user_id: str):
     if user_id not in KOTAK_SESSIONS:
-        raise Exception("RAW ERROR: Kotak Live Session is missing. Please click 'Start Daily Session'.")
+        raise Exception("Kotak Live Session is OFF! Please click 'Start Daily Session' on Dashboard.")
     return KOTAK_SESSIONS[user_id]
 
 @router.get("/option-chain")
@@ -26,76 +26,88 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
     try:
         client = get_kotak_client(current_user["id"]) 
         conf = INDICES_CONFIG.get(symbol)
+        if not conf: raise Exception("Invalid Symbol Selected")
 
+        # =========================================
+        # 🟢 STEP 1: FETCH SPOT PRICE (Your Script's Logic)
+        # =========================================
+        spot_ltp = 0
+        
+        if symbol == "SENSEX":
+            req_primary = [{"instrument_token": "SENSEX", "exchange_segment": "nse_cm"}]
+            req_fallback = [{"instrument_token": "SENSEX", "exchange_segment": "bse_cm"}]
+            
+            try:
+                q = client.quotes(instrument_tokens=req_primary, quote_type="all")
+                item = q[0] if isinstance(q, list) else q.get('data', [{}])[0]
+                spot_ltp = float(item.get('ltp', item.get('lastPrice', 0)))
+            except: pass
+            
+            # Silent Fallback to bse_cm
+            if spot_ltp == 0:
+                try:
+                    q = client.quotes(instrument_tokens=req_fallback, quote_type="all")
+                    item = q[0] if isinstance(q, list) else q.get('data', [{}])[0]
+                    spot_ltp = float(item.get('ltp', item.get('lastPrice', 0)))
+                except: pass
+        else:
+            try:
+                req = [{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}]
+                q = client.quotes(instrument_tokens=req, quote_type="all")
+                item = q[0] if isinstance(q, list) else q.get('data', [{}])[0]
+                spot_ltp = float(item.get('ltp', item.get('lastPrice', 0)))
+            except: pass
+
+        if spot_ltp == 0:
+            raise Exception(f"Could not fetch {symbol} Spot Price. API returned 0.")
+
+        # =========================================
+        # 🟢 STEP 2: ATM CALCULATION (Your Exact Math)
+        # =========================================
+        gap = conf["Gap"]
+        half_gap = gap / 2
+        ltp_int = int(spot_ltp)
+        rem = ltp_int % gap
+        
+        if rem < half_gap:
+            atm = ltp_int - rem
+        else:
+            atm = ltp_int + (gap - rem)
+
+        strikes = [atm + (i * gap) for i in range(-10, 11)] # UI ke liye range (-10 se +10)
+
+        # =========================================
+        # 🟢 STEP 3: MONGODB MASTER & EXPIRY (Your Script's Matcher)
+        # =========================================
         fo_master_col = get_collection("fo_master")
         cursor = await fo_master_col.find({"IndexName": symbol}).to_list(length=None)
         df = pd.DataFrame(cursor)
         
-        if df.empty or "5" not in df.columns.astype(str): 
-            raise Exception("RAW ERROR: MongoDB fo_master collection is empty or missing columns.")
+        if df.empty or "7" not in df.columns.astype(str): 
+            raise Exception("MongoDB Master Data empty.")
 
         df.columns = df.columns.astype(str)
-        
-        # =========================================
-        # 1. FETCH FUTURE PRICE 
-        # =========================================
-        search_sym = conf["FutureSymbol"]
-        fut_row = df[df["5"] == search_sym]
-        
-        if fut_row.empty:
-            raise Exception(f"RAW ERROR: Future Symbol {search_sym} not found in MongoDB.")
-
-        fut_tk = str(int(float(fut_row.iloc[0]["0"])))
-        spot_price = 0.0
-        
-        try:
-            fut_resp = client.quotes(instrument_tokens=[{"instrument_token": fut_tk, "exchange_segment": conf["Exchange"]}], quote_type="all")
-        except Exception as e:
-            raise Exception(f"RAW API EXCEPTION (Future Quotes): {str(e)}")
-
-        if isinstance(fut_resp, list) and len(fut_resp) > 0:
-            spot_price = float(fut_resp[0].get('ltp', fut_resp[0].get('lastPrice', 0)))
-        elif isinstance(fut_resp, dict) and 'data' in fut_resp and len(fut_resp['data']) > 0:
-            spot_price = float(fut_resp['data'][0].get('ltp', fut_resp['data'][0].get('lastPrice', 0)))
-
-        if spot_price == 0:
-            raise Exception(f"RAW API RESPONSE (Future LTP is 0): {fut_resp}")
-
-        # =========================================
-        # 2. CALCULATE ATM
-        # =========================================
-        gap = conf["Gap"]
-        atm = round(spot_price / gap) * gap
-        strikes = [atm + (i * gap) for i in range(-10, 11)]
-
-        # =========================================
-        # 3. EXACT WEEKLY EXPIRY SEARCH (Aapka Logic!)
-        # =========================================
-        now_ist = datetime.now(IST)
         all_symbols = set(df["7"].astype(str).values)
-        expiry_date_str = None
         
-        # Aaj se lekar agle 45 din tak ek-ek din check karega
-        for i in range(0, 45):
+        now_ist = datetime.now(IST)
+        expiry_str = None
+        
+        # Searching exact expiry format (e.g. 02APR26)
+        for i in range(45):
             test_date = now_ist + timedelta(days=i)
-            # Format banayega: 02APR26, 03APR26, etc.
             d_str = f"{test_date.strftime('%d')}{test_date.strftime('%b').upper()}{test_date.strftime('%y')}"
             
-            check_sym_1 = f"{symbol}{d_str}{atm}.00CE"
-            check_sym_2 = f"{symbol}{d_str}{atm}CE"
-            
-            # Jo bhi sabse pehli date DB mein match ho gayi, wo Weekly Expiry hai!
-            if check_sym_1 in all_symbols or check_sym_2 in all_symbols:
-                expiry_date_str = d_str
+            if f"{symbol}{d_str}{atm}CE" in all_symbols or f"{symbol}{d_str}{atm}.00CE" in all_symbols:
+                expiry_str = d_str
                 break
                 
-        if not expiry_date_str: 
-            raise Exception(f"RAW ERROR: No valid expiry found in DB for ATM {atm}.")
+        if not expiry_str: 
+            raise Exception(f"No valid weekly expiry found for ATM {atm}.")
 
         # =========================================
-        # 4. BUILD CHAIN TOKENS
+        # 🟢 STEP 4: EXTRACT TOKENS & FETCH BATCH QUOTES
         # =========================================
-        prefix = f"{symbol}{expiry_date_str}"
+        prefix = f"{symbol}{expiry_str}"
         req_tokens = []
         strike_map = {} 
         
@@ -115,40 +127,39 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
                 strike_map[stk]["pe_token"] = tk
 
         if not req_tokens: 
-            raise Exception(f"RAW ERROR: Option tokens list is empty for prefix {prefix}.")
+            raise Exception(f"Option tokens mapping failed for prefix {prefix}.")
 
-        # =========================================
-        # 5. FETCH LIVE PREMIUMS
-        # =========================================
-        try:
-            opt_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
-        except Exception as e:
-            raise Exception(f"RAW API EXCEPTION (Options Quotes): {str(e)}")
-             
-        items = opt_resp if isinstance(opt_resp, list) else opt_resp.get('data', [])
-        
-        if not items:
-            raise Exception(f"RAW API RESPONSE (Invalid Options Data): {opt_resp}")
-
-        for item in items:
-            tk = str(item.get('exchange_token', item.get('tk')))
-            for st, data in strike_map.items():
-                if data.get("ce_token") == tk:
-                    data["ce_ltp"] = float(item.get('ltp', item.get('lastPrice', 0)))
-                    data["ce_oi"] = int(item.get('open_int', item.get('oi', 0)))
-                elif data.get("pe_token") == tk:
-                    data["pe_ltp"] = float(item.get('ltp', item.get('lastPrice', 0)))
-                    data["pe_oi"] = int(item.get('open_int', item.get('oi', 0)))
+        # Batching (Max 50) exact same as your script
+        batch_size = 50
+        for i in range(0, len(req_tokens), batch_size):
+            batch = req_tokens[i : i+batch_size]
+            try:
+                q = client.quotes(instrument_tokens=batch, quote_type="all")
+                raw = q if isinstance(q, list) else q.get('data', [])
+                
+                for item in raw:
+                    tk = str(item.get('exchange_token') or item.get('tk'))
+                    ltp = float(item.get('ltp', item.get('lastPrice', 0)))
+                    oi = int(float(item.get('open_int') or item.get('openInterest') or item.get('oi') or 0))
+                    
+                    for st, data in strike_map.items():
+                        if data.get("ce_token") == tk:
+                            data["ce_ltp"] = ltp
+                            data["ce_oi"] = oi
+                        elif data.get("pe_token") == tk:
+                            data["pe_ltp"] = ltp
+                            data["pe_oi"] = oi
+            except Exception as e:
+                print(f"Batch Quote Error: {e}")
 
         chain_data = [{"strike": st, **strike_map[st]} for st in strikes]
         
         return {
             "status": "success", 
             "symbol": symbol, 
-            "expiry": expiry_date_str, 
-            "spot_price": spot_price, 
-            "data": chain_data, 
-            "is_dummy": False
+            "expiry": expiry_str, 
+            "spot_price": spot_ltp, 
+            "data": chain_data
         }
 
     except Exception as e:

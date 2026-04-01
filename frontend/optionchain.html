@@ -3,175 +3,369 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Option Chain | AlgoSaaS</title>
+    <title>Live Terminal | AlgoSaaS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = { theme: { extend: { colors: { darkBase: '#0f172a', darkCard: '#1e293b', primary: '#3b82f6', success: '#10b981', danger: '#ef4444' } } } }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBase: '#0f172a',
+                        darkCard: '#1e293b',
+                        primary: '#3b82f6',
+                        success: '#10b981',
+                        danger: '#ef4444'
+                    }
+                }
+            }
+        }
     </script>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
-        .loader { border: 3px solid #1e293b; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Option Chain Table Styling */
-        table { border-collapse: separate; border-spacing: 0; }
-        th { position: sticky; top: 0; background: #1e293b; z-index: 10; font-size: 10px; }
-        .atm-row td { border-top: 2px solid #3b82f6 !important; border-bottom: 2px solid #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1); }
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        /* Adjusted for mobile */
+        #tv_chart_container { height: 35vh; width: 100%; }
+        .panel-area { height: calc(65vh - 60px); overflow-y: auto; padding-bottom: 20px;}
+        
+        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(3px); }
     </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="h-screen flex flex-col">
 
-    <header class="bg-darkCard border-b border-slate-700 p-4 sticky top-0 z-50 flex items-center justify-between shadow-md">
+    <header class="bg-darkCard border-b border-slate-700 p-3 flex items-center justify-between shadow-md z-10">
         <div class="flex items-center gap-3">
             <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 transition font-bold">&larr;</button>
             <div class="flex flex-col">
-                <h2 class="text-sm font-bold text-white">⛓️ Option Chain</h2>
-                <div class="flex items-center gap-2 mt-1">
-                    <select id="index-selector" onchange="fetchOptionChain()" class="bg-slate-900 border border-slate-600 text-[10px] text-white rounded px-1 py-0.5 outline-none font-bold cursor-pointer">
-                        <option value="NIFTY">NIFTY</option>
-                        <option value="BANKNIFTY">BANKNIFTY</option>
-                        <option value="SENSEX">SENSEX</option>
-                    </select>
-                    <span id="expiry-date" class="text-[10px] text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded">--</span>
-                </div>
+                <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                    📈 Terminal
+                    <span id="mode-badge" class="px-2 py-0.5 text-[8px] bg-orange-500 text-white rounded font-black tracking-wider uppercase shadow-[0_0_8px_rgba(249,115,22,0.5)]">PAPER</span>
+                </h2>
+                <select id="chart-index" onchange="changeSymbol()" class="bg-transparent text-xs text-slate-400 font-bold outline-none cursor-pointer mt-0.5">
+                    <option value="NIFTY">NIFTY 50</option>
+                    <option value="BANKNIFTY">BANKNIFTY</option>
+                    <option value="SENSEX">SENSEX</option>
+                </select>
             </div>
         </div>
-        <div class="text-right">
-            <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Spot Price</p>
-            <p id="spot-price" class="text-sm font-black text-white">0.00</p>
+        
+        <div class="text-right bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg shadow-inner">
+            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Total MTM</p>
+            <p id="total-pnl" class="text-lg font-black text-slate-300 transition-colors">+ ₹0.00</p>
         </div>
     </header>
 
-    <div id="status-container" class="p-4 flex flex-col items-center justify-center flex-1">
-        <div id="loader" class="flex flex-col items-center gap-3">
-            <span class="loader w-8 h-8 border-4 border-t-primary"></span>
-            <p class="text-xs text-slate-400 animate-pulse">Fetching Live Data from Kotak...</p>
+    <main class="w-full relative bg-[#131722] border-b border-slate-700" id="tv_chart_container"></main>
+
+    <div class="flex bg-darkCard border-b border-slate-700">
+        <button onclick="switchTab('chain')" id="tab-chain" class="flex-1 py-2 text-xs font-bold text-primary border-b-2 border-primary transition">Option Chain</button>
+        <button onclick="switchTab('positions')" id="tab-positions" class="flex-1 py-2 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">Positions</button>
+    </div>
+
+    <section id="panel-chain" class="panel-area bg-darkBase p-2">
+        <div class="flex justify-between items-center mb-2 px-1">
+            <span class="text-xs text-slate-400 font-bold" id="expiry-display">Loading...</span>
+            <button onclick="fetchOptionChain()" class="text-xs text-primary hover:text-white">&#x21bb; Refresh</button>
         </div>
-        <div id="error-box" class="hidden bg-danger/10 border border-danger/50 p-4 rounded-xl text-center max-w-sm w-full shadow-lg">
-            <div class="text-3xl mb-2">⚠️</div>
-            <h3 class="text-danger font-bold text-sm mb-1">Data Fetch Failed</h3>
-            <p id="error-msg" class="text-xs text-slate-300"></p>
-            <button onclick="fetchOptionChain()" class="mt-4 bg-slate-800 hover:bg-slate-700 border border-slate-600 px-4 py-2 rounded text-xs text-white font-bold transition">Try Again</button>
+        
+        <div class="grid grid-cols-3 text-[10px] text-slate-500 font-black uppercase tracking-wider mb-1 px-1 text-center">
+            <div>CALL (CE)</div>
+            <div>STRIKE</div>
+            <div>PUT (PE)</div>
+        </div>
+
+        <div id="chain-container" class="space-y-1">
+            <div class="text-center text-xs text-slate-500 py-4">Fetching live chain...</div>
+        </div>
+    </section>
+
+    <section id="panel-positions" class="panel-area bg-darkBase p-2 hidden">
+        <div class="flex justify-between items-center mb-2 px-1">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                Open Positions <span class="w-2 h-2 bg-success rounded-full animate-pulse"></span>
+            </h3>
+            <button onclick="panicExitAll()" class="text-[10px] font-black bg-danger text-white px-2 py-1 rounded shadow-[0_0_8px_rgba(239,68,68,0.6)]">🚨 EXIT ALL</button>
+        </div>
+        <div id="trades-container" class="space-y-2 pb-6"></div>
+    </section>
+
+    <div id="order-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4">
+        <div class="bg-darkCard border border-slate-600 rounded-xl p-4 w-full max-w-sm shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-bold text-white" id="modal-title">Place Order</h3>
+                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-white font-bold">&times;</button>
+            </div>
+            
+            <div class="mb-4">
+                <p class="text-xs text-slate-400 mb-1">Symbol</p>
+                <p class="text-sm font-black text-white" id="modal-symbol">NIFTY26APR22900CE</p>
+                <p class="text-xs text-primary font-bold mt-1">LTP: ₹<span id="modal-ltp">0.00</span></p>
+            </div>
+
+            <div class="mb-4">
+                <label class="text-xs text-slate-400 block mb-1">Quantity (Lots * Size)</label>
+                <input type="number" id="modal-qty" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-primary" value="50">
+            </div>
+
+            <div class="flex gap-2 mt-6">
+                <button onclick="executeOrder('B')" class="flex-1 bg-success hover:bg-green-600 text-white font-bold py-2 rounded shadow-[0_0_10px_rgba(16,185,129,0.4)]">BUY</button>
+                <button onclick="executeOrder('S')" class="flex-1 bg-danger hover:bg-red-600 text-white font-bold py-2 rounded shadow-[0_0_10px_rgba(239,68,68,0.4)]">SELL</button>
+            </div>
         </div>
     </div>
 
-    <main id="chain-container" class="hidden flex-1 overflow-auto bg-darkBase pb-10">
-        <div class="min-w-[600px]"> <table class="w-full text-center text-xs">
-                <thead>
-                    <tr>
-                        <th colspan="2" class="py-2 border-b border-r border-slate-600 text-success uppercase tracking-wider">CALLS (CE)</th>
-                        <th class="py-2 border-b border-slate-600 text-white uppercase tracking-wider bg-slate-800">STRIKE</th>
-                        <th colspan="2" class="py-2 border-b border-l border-slate-600 text-danger uppercase tracking-wider">PUTS (PE)</th>
-                    </tr>
-                    <tr class="text-slate-400 bg-slate-800/50">
-                        <td class="py-1.5 border-b border-r border-slate-700">OI (Lakh)</td>
-                        <td class="py-1.5 border-b border-r border-slate-700 font-bold text-slate-300">LTP</td>
-                        <td class="py-1.5 border-b border-slate-700 bg-slate-800 font-bold text-white shadow-lg">PRICE</td>
-                        <td class="py-1.5 border-b border-l border-slate-700 font-bold text-slate-300">LTP</td>
-                        <td class="py-1.5 border-b border-l border-slate-700">OI (Lakh)</td>
-                    </tr>
-                </thead>
-                <tbody id="chain-body">
-                    </tbody>
-            </table>
-        </div>
-    </main>
-
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
         const API_BASE_URL = "https://algosaas.onrender.com/api/v1";
+        const WS_BASE_URL = "wss://algosaas.onrender.com/ws/live-data";
+        let tvWidget = null;
+        let wsConnection = null;
+        let currentAtm = 0;
+        let selectedOrder = {}; // To store modal data
 
         window.onload = () => {
-            fetchOptionChain();
+            const mode = localStorage.getItem('trade_mode') || 'PAPER';
+            const badge = document.getElementById('mode-badge');
+            if(mode === 'REAL') {
+                badge.innerText = 'REAL';
+                badge.className = "px-2 py-0.5 text-[8px] bg-success text-white rounded font-black tracking-wider uppercase shadow-[0_0_8px_rgba(16,185,129,0.5)]";
+            }
+            
+            changeSymbol(); // Initializes Chart & Option Chain
+            fetchPaperTrades();
+            connectWebSocket();
         };
 
-        function formatOI(oi) {
-            if (oi === 0) return "-";
-            return (oi / 100000).toFixed(1); // Converts to Lakhs
+        // --- TAB SWITCHING ---
+        function switchTab(tab) {
+            document.getElementById('panel-chain').classList.add('hidden');
+            document.getElementById('panel-positions').classList.add('hidden');
+            document.getElementById('tab-chain').className = "flex-1 py-2 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
+            document.getElementById('tab-positions').className = "flex-1 py-2 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
+            
+            document.getElementById(`panel-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).className = "flex-1 py-2 text-xs font-bold text-primary border-b-2 border-primary transition";
+            
+            if(tab === 'positions') fetchPaperTrades();
         }
 
-        async function fetchOptionChain() {
-            const token = localStorage.getItem('saas_token');
-            if(!token) {
-                showError("Please login to view Option Chain.");
-                return;
-            }
-
-            const symbol = document.getElementById('index-selector').value;
+        // --- CHART & SYMBOL UPDATE ---
+        function changeSymbol() {
+            const sym = document.getElementById('chart-index').value;
+            const tvSymbol = "BSE:" + sym; // Defaulting to BSE format for TV
             
-            // UI Reset
-            document.getElementById('status-container').classList.remove('hidden');
-            document.getElementById('loader').classList.remove('hidden');
-            document.getElementById('error-box').classList.add('hidden');
-            document.getElementById('chain-container').classList.add('hidden');
-            document.getElementById('expiry-date').innerText = "--";
-            document.getElementById('spot-price').innerText = "0.00";
+            if(tvWidget) {
+                tvWidget.setSymbol(tvSymbol, "5");
+            } else {
+                tvWidget = new TradingView.widget({
+                    "autosize": true, "symbol": tvSymbol, "interval": "5", "timezone": "Asia/Kolkata",
+                    "theme": "dark", "style": "1", "locale": "in", "enable_publishing": false,
+                    "backgroundColor": "#131722", "gridColor": "#1f2937", "hide_top_toolbar": false,
+                    "hide_legend": false, "save_image": false, "container_id": "tv_chart_container",
+                    "studies": ["Volume@tv-basicstudies"], "disabled_features": ["header_symbol_search", "header_compare"]
+                });
+            }
+            fetchOptionChain(sym);
+            
+            // Set default lot size in modal
+            let defaultQty = 50;
+            if(sym === 'BANKNIFTY') defaultQty = 15;
+            if(sym === 'SENSEX') defaultQty = 10;
+            document.getElementById('modal-qty').value = defaultQty;
+        }
 
+        // --- FETCH OPTION CHAIN ---
+        async function fetchOptionChain(symName = null) {
+            const container = document.getElementById('chain-container');
+            const symbol = symName || document.getElementById('chart-index').value;
+            const token = localStorage.getItem('saas_token');
+            
+            container.innerHTML = `<div class="text-center text-xs text-slate-500 py-4">Loading Chain...</div>`;
+            
             try {
-                const response = await fetch(`${API_BASE_URL}/market/option-chain?symbol=${symbol}`, {
+                const res = await fetch(`${API_BASE_URL}/market/option-chain?symbol=${symbol}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                const response = await res.json();
                 
-                const data = await response.json();
-
-                if (response.ok) {
-                    renderChain(data);
+                if(response.status === "success") {
+                    document.getElementById('expiry-display').innerText = `Expiry: ${response.expiry} | Spot: ${response.spot_price}`;
+                    currentAtm = Math.round(response.spot_price / 50) * 50; // Approximation for highlight
+                    renderChain(response.data, symbol, response.expiry);
                 } else {
-                    // 🚨 YAHAN DIKHEGA ASLI BACKEND ERROR
-                    showError(data.detail || "Unknown server error occurred.");
+                    container.innerHTML = `<div class="text-center text-xs text-danger py-4">Error loading chain</div>`;
                 }
-            } catch (err) {
-                showError("Network Error. Cannot connect to Render Backend.");
+            } catch(e) {
+                container.innerHTML = `<div class="text-center text-xs text-danger py-4">Network Error</div>`;
             }
         }
 
-        function showError(msg) {
-            document.getElementById('loader').classList.add('hidden');
-            document.getElementById('error-box').classList.remove('hidden');
-            document.getElementById('error-msg').innerText = msg;
-        }
-
-        function renderChain(data) {
-            document.getElementById('status-container').classList.add('hidden');
-            document.getElementById('chain-container').classList.remove('hidden');
+        function renderChain(data, symbol, expiry) {
+            const container = document.getElementById('chain-container');
+            container.innerHTML = '';
             
-            document.getElementById('spot-price').innerText = data.spot_price.toFixed(2);
-            document.getElementById('expiry-date').innerText = data.expiry;
-
-            const tbody = document.getElementById('chain-body');
-            tbody.innerHTML = '';
-
-            // Find ATM Strike to highlight
-            const gap = data.symbol === "NIFTY" ? 50 : 100;
-            const atmStrike = Math.round(data.spot_price / gap) * gap;
-
-            data.data.forEach(row => {
-                const isATM = row.strike === atmStrike;
-                const rowClass = isATM ? 'atm-row' : 'border-b border-slate-700/50 hover:bg-slate-800/30 transition-colors';
+            data.forEach(item => {
+                const isAtm = Math.abs(item.strike - currentAtm) < 50;
+                const bgClass = isAtm ? 'bg-slate-800 border-primary' : 'bg-darkCard border-slate-700/50';
                 
-                // Colors based on ITM/OTM
-                const ceBgClass = row.strike < atmStrike ? 'bg-amber-500/10' : '';
-                const peBgClass = row.strike > atmStrike ? 'bg-amber-500/10' : '';
+                // Option Symbols
+                const ceSymbol = `${symbol}${expiry}${item.strike}CE`;
+                const peSymbol = `${symbol}${expiry}${item.strike}PE`;
 
                 const html = `
-                    <tr class="${rowClass}">
-                        <td class="py-2 px-1 border-r border-slate-700/50 text-[10px] text-slate-400 ${ceBgClass}">${formatOI(row.ce_oi)}</td>
-                        <td class="py-2 px-2 border-r border-slate-700/50 font-bold text-success ${ceBgClass}">${row.ce_ltp > 0 ? row.ce_ltp.toFixed(2) : '-'}</td>
-                        
-                        <td class="py-2 px-3 font-black text-white bg-slate-800/80 shadow-md">${row.strike}</td>
-                        
-                        <td class="py-2 px-2 border-l border-slate-700/50 font-bold text-danger ${peBgClass}">${row.pe_ltp > 0 ? row.pe_ltp.toFixed(2) : '-'}</td>
-                        <td class="py-2 px-1 border-l border-slate-700/50 text-[10px] text-slate-400 ${peBgClass}">${formatOI(row.pe_oi)}</td>
-                    </tr>
-                `;
-                tbody.innerHTML += html;
+                <div class="grid grid-cols-3 items-center text-center ${bgClass} border rounded-lg p-2 shadow-sm mb-1">
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs font-bold text-success mb-1">₹${item.ce_ltp.toFixed(2)}</span>
+                        <div class="flex gap-1">
+                            <button onclick="openOrderModal('${ceSymbol}', ${item.ce_ltp}, '${item.ce_token}')" class="bg-slate-700 hover:bg-primary text-white text-[9px] px-2 py-1 rounded font-bold transition">T</button>
+                        </div>
+                    </div>
+                    
+                    <div class="text-sm font-black text-white ${isAtm ? 'text-primary' : ''}">${item.strike}</div>
+                    
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs font-bold text-danger mb-1">₹${item.pe_ltp.toFixed(2)}</span>
+                        <div class="flex gap-1">
+                            <button onclick="openOrderModal('${peSymbol}', ${item.pe_ltp}, '${item.pe_token}')" class="bg-slate-700 hover:bg-primary text-white text-[9px] px-2 py-1 rounded font-bold transition">T</button>
+                        </div>
+                    </div>
+                </div>`;
+                container.innerHTML += html;
             });
+        }
 
-            // Auto-scroll to ATM row (delayed slightly to ensure render)
-            setTimeout(() => {
-                const atmEl = document.querySelector('.atm-row');
-                if (atmEl) atmEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 300);
+        // --- ORDER MODAL LOGIC ---
+        function openOrderModal(symbol, ltp, token) {
+            selectedOrder = { symbol, ltp, token };
+            document.getElementById('modal-symbol').innerText = symbol;
+            document.getElementById('modal-ltp').innerText = ltp.toFixed(2);
+            document.getElementById('order-modal').classList.remove('hidden');
+        }
+
+        function closeOrderModal() {
+            document.getElementById('order-modal').classList.add('hidden');
+        }
+
+        async function executeOrder(transactionType) {
+            const qty = document.getElementById('modal-qty').value;
+            const mode = localStorage.getItem('trade_mode') || 'PAPER';
+            const token = localStorage.getItem('saas_token');
+            
+            const payload = {
+                exchange_segment: "nse_fo",
+                trading_symbol: selectedOrder.symbol,
+                transaction_type: transactionType,
+                quantity: qty.toString(),
+                price: selectedOrder.ltp.toString(),
+                order_type: "L",
+                product: "NRML"
+            };
+
+            // Note: In backend, place-order API needs to handle ?mode=PAPER 
+            // Abhi ke liye hum parameter bhej rahe hain
+            try {
+                const res = await fetch(`${API_BASE_URL}/trades/place-order?mode=${mode}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await res.json();
+                if(res.ok) {
+                    alert(`${mode} Order Placed Successfully!`);
+                    closeOrderModal();
+                    switchTab('positions'); // Switch to positions to see it
+                } else {
+                    alert("Error: " + data.detail);
+                }
+            } catch(e) {
+                alert("Order Request Failed.");
+            }
+        }
+
+        // --- FETCH TRADES & WS (Keep existing logic) ---
+        async function fetchPaperTrades() {
+            const container = document.getElementById('trades-container');
+            const token = localStorage.getItem('saas_token');
+            if(!token) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/trades/open-positions?mode=${localStorage.getItem('trade_mode') || 'PAPER'}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if(response.ok) {
+                    const data = await response.json();
+                    renderTrades(data.positions);
+                }
+            } catch(e) { console.log(e); }
+        }
+
+        function renderTrades(positions) {
+            const container = document.getElementById('trades-container');
+            if(!positions || positions.length === 0) {
+                container.innerHTML = `<div class="text-center text-xs text-slate-500 py-4">No active positions</div>`;
+                updateTotalPNL(0); return;
+            }
+            container.innerHTML = '';
+            let totalMtm = 0;
+            positions.forEach(pos => {
+                const pnl = pos.mtm || 0; totalMtm += pnl;
+                const pnlColor = pnl >= 0 ? 'text-success' : 'text-danger';
+                const posColor = pos.transaction === 'B' ? 'bg-success' : 'bg-danger';
+                const html = `
+                <div class="bg-darkCard border border-slate-700/50 p-3 rounded-lg flex justify-between shadow-md mb-2">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] font-bold ${posColor} text-white px-1.5 py-0.5 rounded">${pos.transaction}</span>
+                            <span class="text-xs font-bold text-white">${pos.symbol}</span>
+                            <span class="text-[10px] text-slate-400">x ${pos.qty}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400">Avg: ₹${(pos.entry_price||0).toFixed(2)} | <span class="${pnlColor}">LTP: ₹${(pos.ltp||pos.entry_price||0).toFixed(2)}</span></div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-sm font-black ${pnlColor}">₹${Math.abs(pnl).toFixed(2)}</span><br>
+                        <button onclick="squareOff('${pos.id}')" class="mt-1 text-[9px] bg-slate-800 text-slate-300 border border-slate-600 px-2 py-1 rounded">SQUARE OFF</button>
+                    </div>
+                </div>`;
+                container.innerHTML += html;
+            });
+            updateTotalPNL(totalMtm);
+        }
+
+        function updateTotalPNL(amount) {
+            const el = document.getElementById('total-pnl');
+            el.innerText = `${amount >= 0 ? '+' : '-'} ₹${Math.abs(amount).toFixed(2)}`;
+            el.className = `text-lg font-black ${amount >= 0 ? 'text-success' : 'text-danger'}`;
+        }
+
+        function connectWebSocket() {
+            const token = localStorage.getItem('saas_token');
+            if(!token) return;
+            wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}&mode=${localStorage.getItem('trade_mode') || 'PAPER'}`);
+            wsConnection.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if(data.positions) renderTrades(data.positions);
+            };
+            wsConnection.onclose = () => setTimeout(connectWebSocket, 5000);
+        }
+
+        async function panicExitAll() {
+            if(confirm("🚨 SQUARE OFF ALL?")) {
+                const token = localStorage.getItem('saas_token');
+                const mode = localStorage.getItem('trade_mode') || 'PAPER';
+                await fetch(`${API_BASE_URL}/trades/exit-all?mode=${mode}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+                fetchPaperTrades();
+            }
+        }
+
+        async function squareOff(tradeId) {
+            if(confirm("Square off?")) {
+                const token = localStorage.getItem('saas_token');
+                await fetch(`${API_BASE_URL}/trades/close-position`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ trade_id: tradeId, mode: localStorage.getItem('trade_mode') || 'PAPER' })
+                });
+                fetchPaperTrades();
+            }
         }
     </script>
 </body>

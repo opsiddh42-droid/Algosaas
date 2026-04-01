@@ -155,6 +155,37 @@
                 </div>
             </div>
 
+            <div class="glass-card rounded-2xl p-5 mb-6 border border-emerald-500/20 relative overflow-hidden">
+                <div class="absolute -left-6 -bottom-6 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
+                
+                <div class="flex justify-between items-start mb-4 relative z-10">
+                    <div>
+                        <h3 class="font-bold text-lg text-white flex items-center gap-2">🤖 Smart Algo Bot</h3>
+                        <p id="algo-plan" class="text-xs text-emerald-400 font-bold mt-1">Loading Plan...</p>
+                    </div>
+                    
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="algo-toggle" class="sr-only peer" onchange="toggleAlgo()">
+                        <div class="w-14 h-7 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                    </label>
+                </div>
+                
+                <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-800 relative z-10 flex justify-between items-center">
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Status</p>
+                        <p id="algo-status-text" class="text-sm font-black text-slate-300 mt-0.5">⚪ Offline</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Strategy</p>
+                        <p class="text-sm font-black text-slate-300 mt-0.5">Sell &lt; ₹12/₹6 (SL 200%)</p>
+                    </div>
+                </div>
+
+                <button onclick="testAlgoExecution()" id="test-algo-btn" class="w-full mt-4 bg-slate-800/80 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-xs font-bold transition border border-slate-600/50 relative z-10 hidden shadow-sm">
+                    ⚙️ Force Execute Now (Manual Test)
+                </button>
+            </div>
+
             <div class="glass-card rounded-2xl p-5 mb-6 border border-blue-500/20 relative overflow-hidden">
                 <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
                 <h3 class="font-bold text-lg text-white mb-1 flex items-center gap-2">📊 Market Data Sync</h3>
@@ -268,7 +299,64 @@
         
         let wsConnection = null;
 
-        // --- 🟢 NEW: SYNC MASTER LOGIC ---
+        // --- 🤖 ALGO BOT LOGIC ---
+        async function fetchAlgoStatus() {
+            const token = localStorage.getItem('saas_token');
+            if(!token) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/algo/status`, { headers: { 'Authorization': `Bearer ${token}` }});
+                const data = await res.json();
+                if(res.ok) {
+                    document.getElementById('algo-toggle').checked = data.is_active;
+                    document.getElementById('algo-plan').innerText = `Today: ${data.plan_today}`;
+                    
+                    const statusText = document.getElementById('algo-status-text');
+                    if(data.is_active) {
+                        if(data.executed_today) statusText.innerHTML = "🟢 Trades Running";
+                        else statusText.innerHTML = "🟡 Waiting for 10:00 AM";
+                        document.getElementById('test-algo-btn').classList.remove('hidden');
+                    } else {
+                        statusText.innerHTML = "⚪ Offline";
+                        document.getElementById('test-algo-btn').classList.add('hidden');
+                    }
+                }
+            } catch(e) { console.log(e); }
+        }
+
+        async function toggleAlgo() {
+            const token = localStorage.getItem('saas_token');
+            const toggle = document.getElementById('algo-toggle');
+            try {
+                const res = await fetch(`${API_BASE_URL}/algo/toggle`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+                const data = await res.json();
+                if(res.ok) {
+                    alert(data.message);
+                    fetchAlgoStatus();
+                } else {
+                    toggle.checked = !toggle.checked; // Revert if failed
+                }
+            } catch(e) { toggle.checked = !toggle.checked; }
+        }
+
+        async function testAlgoExecution() {
+            const token = localStorage.getItem('saas_token');
+            const mode = localStorage.getItem('trade_mode') || 'PAPER';
+            const btn = document.getElementById('test-algo-btn');
+            btn.innerText = "⏳ Executing...";
+            try {
+                const res = await fetch(`${API_BASE_URL}/algo/execute-now?mode=${mode}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+                const data = await res.json();
+                if(res.ok) {
+                    alert("✅ " + data.message);
+                    fetchAlgoStatus();
+                } else {
+                    alert("❌ " + (data.message || data.detail));
+                }
+            } catch(e) { alert("Error connecting to Algo Server."); }
+            btn.innerText = "⚙️ Force Execute Now (Manual Test)";
+        }
+
+        // --- 🟢 SYNC MASTER LOGIC ---
         async function updateWeeklyExpiry() {
             const btn = document.getElementById('sync-btn');
             const icon = document.getElementById('btn-icon');
@@ -340,6 +428,7 @@
             const token = localStorage.getItem('saas_token');
             if(token) {
                 showDashboard(localStorage.getItem('saas_user'), localStorage.getItem('saas_kotak'));
+                fetchAlgoStatus(); // Load Algo Data on start
             }
         };
 
@@ -430,6 +519,7 @@
                     localStorage.setItem('saas_kotak', data.kotak_status || "Inactive");
                     
                     showDashboard(data.user_name || "Trader", data.kotak_status || "Inactive");
+                    fetchAlgoStatus();
                 } else {
                     errorMsg.innerText = getErrorMessage(data.detail);
                     errorMsg.classList.remove('hidden');
@@ -651,3 +741,17 @@
     </script>
 </body>
 </html>
+
+Option chain update kro waha nhi kiya mene yhi dekha hai abhi or ab terminal pr bhi dark mat rkho  or terminal option chain terminal ek hi page pe hai mene phle index .html pr bola tha to pichla message dekh ke btana usme option chain option ke button  click se show hogi. Jese tumne option chain nam se file bnai hui hai pr hmne merge kiya tha na use yha dekho
+function switchTab(tab) {
+            document.getElementById('panel-chain').classList.add('hidden');
+            document.getElementById('panel-positions').classList.add('hidden');
+            document.getElementById('tab-chain').className = "flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
+            document.getElementById('tab-positions').className = "flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
+            
+            document.getElementById(`panel-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).className = "flex-1 py-3 text-xs font-bold text-primary border-b-2 border-primary transition";
+            if(tab === 'positions') fetchPaperTrades();
+        }
+
+Yh merge vala system terminal name se hai option chain name de do or waha set kro dark theme htao jese abhi index ka tha wese kro. Index pr algo vala system alg se code k sath btao ki index pr konsa lgana terminal pr konsa dhyan se kam kro or shi file do dono. Option chain nam pr yh  dono tab ho or abhi jese index .html pr  code lgaya uska btn vala wese alg se ek file main algo rhe bs wha check box ho  jaha click kre to set ho jaye verna close or time set ki jrurt nhi or logic bs fix rhega  yhi baki tum set krna . Do mujhe alg alg btana.

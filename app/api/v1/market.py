@@ -8,27 +8,17 @@ from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
-# 🟢 HARDCODED FUTURE SYMBOLS (Aapke bataye hue!)
 INDICES_CONFIG = {
-    "NIFTY": {
-        "Exchange": "nse_fo", "SpotToken": "256265", "SpotExch": "nse_cm", "Gap": 50, 
-        "FutureSymbol": "NIFTY26APRFUT"
-    },
-    "BANKNIFTY": {
-        "Exchange": "nse_fo", "SpotToken": "26000", "SpotExch": "nse_cm", "Gap": 100, 
-        "FutureSymbol": "BANKNIFTY26APRFUT"
-    },
-    "SENSEX": {
-        "Exchange": "bse_fo", "SpotToken": "1", "SpotExch": "bse_cm", "Gap": 100, 
-        "FutureSymbol": "SENSEX26APRFUT"
-    }
+    "NIFTY": {"Exchange": "nse_fo", "FutureSymbol": "NIFTY26APRFUT", "Gap": 50},
+    "BANKNIFTY": {"Exchange": "nse_fo", "FutureSymbol": "BANKNIFTY26APRFUT", "Gap": 100},
+    "SENSEX": {"Exchange": "bse_fo", "FutureSymbol": "SENSEX26APRFUT", "Gap": 100}
 }
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_kotak_client(user_id: str):
     if user_id not in KOTAK_SESSIONS:
-        raise Exception("Kotak Live Session is OFF! Please click 'Start Daily Session' on Dashboard.")
+        raise Exception("RAW ERROR: Kotak Live Session is missing in KOTAK_SESSIONS dictionary.")
     return KOTAK_SESSIONS[user_id]
 
 @router.get("/option-chain")
@@ -42,60 +32,42 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         df = pd.DataFrame(cursor)
         
         if df.empty or "5" not in df.columns.astype(str): 
-            raise Exception("MongoDB Master Data empty ya columns missing hain.")
+            raise Exception("RAW ERROR: MongoDB fo_master collection is empty or missing column '5'.")
 
         df.columns = df.columns.astype(str)
         
-        spot_price = 0.0
-        
         # =========================================
-        # 🟢 STEP 1: DIRECT HARDCODED FUTURE SYMBOL CHECK
+        # 1. FETCH FUTURE PRICE (RAW ERROR HANDLING)
         # =========================================
         search_sym = conf["FutureSymbol"]
-        print(f"🔍 Searching Hardcoded Future: {search_sym}")
-        
         fut_row = df[df["5"] == search_sym]
         
-        if not fut_row.empty:
-            tk = str(int(float(fut_row.iloc[0]["0"])))
-            try:
-                q = client.quotes(instrument_tokens=[{"instrument_token": tk, "exchange_segment": conf["Exchange"]}], quote_type="all")
-                if q and isinstance(q, dict) and 'data' in q and len(q['data']) > 0:
-                    price = float(q['data'][0].get('ltp', q['data'][0].get('lastPrice', 0)))
-                    if price > 0:
-                        spot_price = price
-                        print(f"✅ Future Price Found: {spot_price}")
-            except Exception as e:
-                print(f"❌ Future Quote Error: {e}")
-        else:
-            print(f"⚠️ Warning: {search_sym} MongoDB Master Data mein nahi mila!")
+        if fut_row.empty:
+            raise Exception(f"RAW ERROR: Future Symbol {search_sym} not found in MongoDB.")
 
-        # =========================================
-        # 🟢 STEP 2: SPOT PRICE FALLBACK (Agar Future fail ho)
-        # =========================================
+        fut_tk = str(int(float(fut_row.iloc[0]["0"])))
+        spot_price = 0.0
+        
+        try:
+            fut_resp = client.quotes(instrument_tokens=[{"instrument_token": fut_tk, "exchange_segment": conf["Exchange"]}], quote_type="all")
+        except Exception as e:
+            raise Exception(f"RAW API EXCEPTION (Future Quotes): {str(e)}")
+
+        if fut_resp and isinstance(fut_resp, dict) and 'data' in fut_resp and len(fut_resp['data']) > 0:
+            spot_price = float(fut_resp['data'][0].get('ltp', fut_resp['data'][0].get('lastPrice', 0)))
+
         if spot_price == 0:
-            print(f"⚠️ Future 0 mila for {symbol}, trying Spot Price Fallback...")
-            try:
-                spot_resp = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
-                if spot_resp and isinstance(spot_resp, dict) and 'data' in spot_resp and len(spot_resp['data']) > 0:
-                    spot_price = float(spot_resp['data'][0].get('ltp', spot_resp['data'][0].get('lastPrice', 0)))
-                    print(f"✅ Spot Price Found: {spot_price}")
-            except Exception as e:
-                print(f"❌ Spot Error: {e}")
-
-        # Agar dono zero nikle toh error throw karo
-        if spot_price == 0: 
-            raise Exception(f"Kotak API ne {symbol} ke Future ({search_sym}) aur Spot dono ka LTP 0 diya hai. Ya toh market band hai, ya DB/Token update maang raha hai.")
+            raise Exception(f"RAW API RESPONSE (Future LTP is 0): {fut_resp}")
 
         # =========================================
-        # 🟢 CALCULATE ATM
+        # 2. CALCULATE ATM
         # =========================================
         gap = conf["Gap"]
         atm = round(spot_price / gap) * gap
         strikes = [atm + (i * gap) for i in range(-10, 11)]
 
         # =========================================
-        # 🟢 SEARCH EXPIRY (IST Time par)
+        # 3. SEARCH EXPIRY
         # =========================================
         now_ist = datetime.now(IST)
         all_symbols = set(df["7"].astype(str).values)
@@ -113,10 +85,10 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
                 break
                 
         if not expiry_date_str: 
-            raise Exception(f"No valid expiry found for ATM {atm}.")
+            raise Exception(f"RAW ERROR: No valid expiry found in DB for ATM {atm}.")
 
         # =========================================
-        # 🟢 BUILD CHAIN TOKENS
+        # 4. BUILD CHAIN TOKENS
         # =========================================
         prefix = f"{symbol}{expiry_date_str}"
         req_tokens = []
@@ -138,23 +110,28 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
                 strike_map[stk]["pe_token"] = tk
 
         if not req_tokens: 
-            raise Exception(f"Option tokens nahi mile {prefix} ke liye.")
-             
+            raise Exception(f"RAW ERROR: Option tokens list is empty for prefix {prefix}.")
+
         # =========================================
-        # 🟢 FETCH LIVE PREMIUMS
+        # 5. FETCH LIVE PREMIUMS (RAW ERROR HANDLING)
         # =========================================
-        q_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
+        try:
+            opt_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
+        except Exception as e:
+            raise Exception(f"RAW API EXCEPTION (Options Quotes): {str(e)}")
              
-        if q_resp and isinstance(q_resp, dict) and 'data' in q_resp:
-            for item in q_resp['data']:
-                tk = str(item.get('exchange_token', item.get('tk')))
-                for st, data in strike_map.items():
-                    if data.get("ce_token") == tk:
-                        data["ce_ltp"] = float(item.get('ltp', item.get('lastPrice', 0)))
-                        data["ce_oi"] = int(item.get('open_int', item.get('oi', 0)))
-                    elif data.get("pe_token") == tk:
-                        data["pe_ltp"] = float(item.get('ltp', item.get('lastPrice', 0)))
-                        data["pe_oi"] = int(item.get('open_int', item.get('oi', 0)))
+        if not opt_resp or not isinstance(opt_resp, dict) or 'data' not in opt_resp:
+            raise Exception(f"RAW API RESPONSE (Invalid Options Data): {opt_resp}")
+
+        for item in opt_resp['data']:
+            tk = str(item.get('exchange_token', item.get('tk')))
+            for st, data in strike_map.items():
+                if data.get("ce_token") == tk:
+                    data["ce_ltp"] = float(item.get('ltp', item.get('lastPrice', 0)))
+                    data["ce_oi"] = int(item.get('open_int', item.get('oi', 0)))
+                elif data.get("pe_token") == tk:
+                    data["pe_ltp"] = float(item.get('ltp', item.get('lastPrice', 0)))
+                    data["pe_oi"] = int(item.get('open_int', item.get('oi', 0)))
 
         chain_data = [{"strike": st, **strike_map[st]} for st in strikes]
         

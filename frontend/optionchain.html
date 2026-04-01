@@ -3,40 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Live Terminal | AlgoSaaS</title>
+    <title>Pro Terminal | AlgoSaaS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        darkBase: '#0f172a',
-                        darkCard: '#1e293b',
-                        primary: '#3b82f6',
-                        success: '#10b981',
-                        danger: '#ef4444'
-                    }
-                }
-            }
+            theme: { extend: { colors: { darkBase: '#0f172a', darkCard: '#1e293b', primary: '#3b82f6', success: '#10b981', danger: '#ef4444' } } }
         }
     </script>
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
-        #tv_chart_container { height: 35vh; width: 100%; }
-        .panel-area { height: calc(65vh - 60px); overflow-y: auto; padding-bottom: 20px;}
-        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(3px); }
+        /* Panel ab poori screen lega header/tabs ke baad */
+        .panel-area { height: calc(100vh - 110px); overflow-y: auto; padding-bottom: 20px;}
+        .modal-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
     <header class="bg-darkCard border-b border-slate-700 p-3 flex items-center justify-between shadow-md z-10">
         <div class="flex items-center gap-3">
-            <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 transition font-bold">&larr;</button>
+            <button onclick="window.location.href='index.html'" class="bg-slate-800 text-slate-300 w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 hover:bg-slate-700 font-bold">&larr;</button>
             <div class="flex flex-col">
                 <h2 class="text-sm font-bold text-white flex items-center gap-2">
-                    📈 Terminal
-                    <span id="mode-badge" class="px-2 py-0.5 text-[8px] bg-orange-500 text-white rounded font-black tracking-wider uppercase shadow-[0_0_8px_rgba(249,115,22,0.5)]">PAPER</span>
+                    ⚡ Terminal
+                    <span id="mode-badge" class="px-2 py-0.5 text-[8px] bg-orange-500 text-white rounded font-black tracking-wider uppercase">PAPER</span>
                 </h2>
                 <select id="chart-index" onchange="changeSymbol()" class="bg-transparent text-xs text-slate-400 font-bold outline-none cursor-pointer mt-0.5">
                     <option value="NIFTY">NIFTY 50</option>
@@ -46,17 +36,15 @@
             </div>
         </div>
         
-        <div class="text-right bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg shadow-inner">
-            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Total MTM</p>
-            <p id="total-pnl" class="text-lg font-black text-slate-300 transition-colors">+ ₹0.00</p>
+        <div class="text-right bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg">
+            <p class="text-[9px] text-slate-500 font-bold uppercase mb-0.5">Total MTM</p>
+            <p id="total-pnl" class="text-lg font-black text-slate-300">+ ₹0.00</p>
         </div>
     </header>
 
-    <main class="w-full relative bg-[#131722] border-b border-slate-700" id="tv_chart_container"></main>
-
     <div class="flex bg-darkCard border-b border-slate-700">
-        <button onclick="switchTab('chain')" id="tab-chain" class="flex-1 py-2 text-xs font-bold text-primary border-b-2 border-primary transition">Option Chain</button>
-        <button onclick="switchTab('positions')" id="tab-positions" class="flex-1 py-2 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">Positions</button>
+        <button onclick="switchTab('chain')" id="tab-chain" class="flex-1 py-3 text-xs font-bold text-primary border-b-2 border-primary transition">Option Chain</button>
+        <button onclick="switchTab('positions')" id="tab-positions" class="flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent transition">Positions</button>
     </div>
 
     <section id="panel-chain" class="panel-area bg-darkBase p-2">
@@ -65,7 +53,7 @@
             <button onclick="fetchOptionChain()" class="text-xs text-primary hover:text-white">&#x21bb; Refresh</button>
         </div>
         
-        <div class="grid grid-cols-3 text-[10px] text-slate-500 font-black uppercase tracking-wider mb-1 px-1 text-center">
+        <div class="grid grid-cols-3 text-[10px] text-slate-500 font-black uppercase tracking-wider mb-2 px-1 text-center bg-darkCard py-2 rounded">
             <div>CALL (CE)</div>
             <div>STRIKE</div>
             <div>PUT (PE)</div>
@@ -78,7 +66,7 @@
 
     <section id="panel-positions" class="panel-area bg-darkBase p-2 hidden">
         <div class="flex justify-between items-center mb-2 px-1">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <h3 class="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
                 Open Positions <span class="w-2 h-2 bg-success rounded-full animate-pulse"></span>
             </h3>
             <button onclick="panicExitAll()" class="text-[10px] font-black bg-danger text-white px-2 py-1 rounded shadow-[0_0_8px_rgba(239,68,68,0.6)]">🚨 EXIT ALL</button>
@@ -86,53 +74,56 @@
         <div id="trades-container" class="space-y-2 pb-6"></div>
     </section>
 
-    <div id="order-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4">
-        <div class="bg-darkCard border border-slate-600 rounded-xl p-4 w-full max-w-sm shadow-2xl">
+    <div id="order-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-end justify-center sm:items-center">
+        <div class="bg-darkCard border-t sm:border border-slate-600 sm:rounded-xl rounded-t-2xl p-5 w-full max-w-sm shadow-2xl animate-[slideUp_0.2s_ease-out]">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-sm font-bold text-white" id="modal-title">Place Order</h3>
-                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-white font-bold">&times;</button>
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">⚡ Place Order</h3>
+                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
             </div>
             
-            <div class="mb-4">
-                <p class="text-xs text-slate-400 mb-1">Symbol</p>
-                <p class="text-sm font-black text-white" id="modal-symbol">NIFTY26APR22900CE</p>
-                <p class="text-xs text-primary font-bold mt-1">LTP: ₹<span id="modal-ltp">0.00</span></p>
+            <div class="mb-4 bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center">
+                <div>
+                    <p class="text-[10px] text-slate-400">Selected Option</p>
+                    <p class="text-sm font-black text-white" id="modal-symbol">-</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-400">Live Price</p>
+                    <p class="text-sm text-primary font-bold">₹<span id="modal-ltp">0.00</span></p>
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Quantity (Lots)</label>
-                    <input type="number" id="modal-qty" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-primary" value="50">
+                    <input type="number" id="modal-qty" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-primary">
                 </div>
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Entry Price</label>
-                    <input type="number" id="modal-price" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-primary">
+                    <input type="number" id="modal-price" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-primary">
                 </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 mb-5">
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Stoploss (₹)</label>
-                    <input type="number" id="modal-sl" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-danger">
+                    <input type="number" id="modal-sl" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-danger">
                 </div>
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Target (₹)</label>
-                    <input type="number" id="modal-target" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-success">
+                    <input type="number" id="modal-target" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-success">
                 </div>
             </div>
 
             <div class="flex gap-2">
-                <button onclick="executeOrder('B')" class="flex-1 bg-success hover:bg-green-600 text-white font-bold py-2 rounded">BUY</button>
-                <button onclick="executeOrder('S')" class="flex-1 bg-danger hover:bg-red-600 text-white font-bold py-2 rounded">SELL</button>
+                <button onclick="executeOrder('B')" class="flex-1 bg-success hover:bg-green-600 text-white font-bold py-3 rounded shadow-[0_0_10px_rgba(16,185,129,0.4)] transition uppercase text-xs">BUY</button>
+                <button onclick="executeOrder('S')" class="flex-1 bg-danger hover:bg-red-600 text-white font-bold py-3 rounded shadow-[0_0_10px_rgba(239,68,68,0.4)] transition uppercase text-xs">SELL</button>
             </div>
         </div>
     </div>
 
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
         const API_BASE_URL = "https://algosaas.onrender.com/api/v1";
         const WS_BASE_URL = "wss://algosaas.onrender.com/ws/live-data";
-        let tvWidget = null;
         let wsConnection = null;
         let currentAtm = 0;
         let selectedOrder = {};
@@ -152,46 +143,21 @@
         function switchTab(tab) {
             document.getElementById('panel-chain').classList.add('hidden');
             document.getElementById('panel-positions').classList.add('hidden');
-            document.getElementById('tab-chain').className = "flex-1 py-2 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
-            document.getElementById('tab-positions').className = "flex-1 py-2 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
+            document.getElementById('tab-chain').className = "flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
+            document.getElementById('tab-positions').className = "flex-1 py-3 text-xs font-bold text-slate-400 border-b-2 border-transparent transition";
             
             document.getElementById(`panel-${tab}`).classList.remove('hidden');
-            document.getElementById(`tab-${tab}`).className = "flex-1 py-2 text-xs font-bold text-primary border-b-2 border-primary transition";
+            document.getElementById(`tab-${tab}`).className = "flex-1 py-3 text-xs font-bold text-primary border-b-2 border-primary transition";
             if(tab === 'positions') fetchPaperTrades();
         }
 
         function changeSymbol() {
             const sym = document.getElementById('chart-index').value;
-            let tvSymbol = "NSE:" + sym; 
-            if(sym === "SENSEX") tvSymbol = "BSE:SENSEX";
-            
-            if(tvWidget) {
-                tvWidget.setSymbol(tvSymbol, "5");
-            } else {
-                tvWidget = new TradingView.widget({
-                    "autosize": true, "symbol": tvSymbol, "interval": "5", "timezone": "Asia/Kolkata",
-                    "theme": "dark", "style": "1", "locale": "in", "enable_publishing": false,
-                    "backgroundColor": "#131722", "gridColor": "#1f2937", "hide_top_toolbar": false,
-                    "hide_legend": false, "save_image": false, "container_id": "tv_chart_container",
-                    "studies": ["Volume@tv-basicstudies"], "disabled_features": ["header_symbol_search", "header_compare"]
-                });
-            }
             fetchOptionChain(sym);
-            
             let defaultQty = 50;
             if(sym === 'BANKNIFTY') defaultQty = 15;
             if(sym === 'SENSEX') defaultQty = 10;
             document.getElementById('modal-qty').value = defaultQty;
-        }
-
-        // 🟢 NAYA FUNCTION: Strike par click karne par chart update karega
-        function updateOptionChart(optSymbol) {
-            if(tvWidget) {
-                // Free TradingView uses NSE: prefix
-                tvWidget.setSymbol("NSE:" + optSymbol, "5");
-            }
-            // Chart top par hai, thoda smooth scroll kar dete hain
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         async function fetchOptionChain(symName = null) {
@@ -223,32 +189,28 @@
             data.forEach(item => {
                 const isAtm = Math.abs(item.strike - currentAtm) < 50;
                 const bgClass = isAtm ? 'bg-slate-800 border-primary' : 'bg-darkCard border-slate-700/50';
-                
                 const ceSymbol = `${symbol}${expiry}${item.strike}CE`;
                 const peSymbol = `${symbol}${expiry}${item.strike}PE`;
 
-                // 🟢 UI UPDATE: Beech wale strike par "onclick" aur hover effect laga diya 
+                // Ab poori row clean aur sirf Trade button par focused hai
                 const html = `
-                <div class="grid grid-cols-3 items-center text-center ${bgClass} border rounded-lg p-2 shadow-sm mb-1">
-                    <div class="flex flex-col items-center cursor-pointer hover:bg-slate-700/50 p-1 rounded transition" onclick="openOrderModal('${ceSymbol}', ${item.ce_ltp}, '${item.ce_token}')">
-                        <span class="text-xs font-bold text-success mb-1">₹${item.ce_ltp.toFixed(2)}</span>
-                        <div class="bg-slate-700 text-white text-[9px] px-2 py-0.5 rounded font-bold">TRADE</div>
+                <div class="grid grid-cols-3 items-center text-center ${bgClass} border rounded-lg py-3 px-1 shadow-sm mb-1">
+                    <div class="flex flex-col items-center cursor-pointer hover:bg-slate-700/50 p-1 rounded" onclick="openOrderModal('${ceSymbol}', ${item.ce_ltp}, '${item.ce_token}')">
+                        <span class="text-sm font-bold text-success mb-1">₹${item.ce_ltp.toFixed(2)}</span>
+                        <div class="bg-slate-700 text-white text-[9px] px-3 py-1 rounded font-bold">TRADE</div>
                     </div>
                     
-                    <div class="text-sm font-black text-white ${isAtm ? 'text-primary' : ''} cursor-pointer hover:underline hover:text-blue-400 transition" onclick="updateOptionChart('${ceSymbol}')" title="Click to open CE Chart">
-                        ${item.strike}
-                    </div>
+                    <div class="text-lg font-black text-white ${isAtm ? 'text-primary' : ''}">${item.strike}</div>
                     
-                    <div class="flex flex-col items-center cursor-pointer hover:bg-slate-700/50 p-1 rounded transition" onclick="openOrderModal('${peSymbol}', ${item.pe_ltp}, '${item.pe_token}')">
-                        <span class="text-xs font-bold text-danger mb-1">₹${item.pe_ltp.toFixed(2)}</span>
-                        <div class="bg-slate-700 text-white text-[9px] px-2 py-0.5 rounded font-bold">TRADE</div>
+                    <div class="flex flex-col items-center cursor-pointer hover:bg-slate-700/50 p-1 rounded" onclick="openOrderModal('${peSymbol}', ${item.pe_ltp}, '${item.pe_token}')">
+                        <span class="text-sm font-bold text-danger mb-1">₹${item.pe_ltp.toFixed(2)}</span>
+                        <div class="bg-slate-700 text-white text-[9px] px-3 py-1 rounded font-bold">TRADE</div>
                     </div>
                 </div>`;
                 container.innerHTML += html;
             });
         }
 
-        // --- BAAKI ORDER MODAL AUR POSITIONS JS SAME HAI ---
         function openOrderModal(symbol, ltp, token) {
             selectedOrder = { symbol, ltp, token };
             document.getElementById('modal-symbol').innerText = symbol;
@@ -259,9 +221,7 @@
             document.getElementById('order-modal').classList.remove('hidden');
         }
 
-        function closeOrderModal() {
-            document.getElementById('order-modal').classList.add('hidden');
-        }
+        function closeOrderModal() { document.getElementById('order-modal').classList.add('hidden'); }
 
         async function executeOrder(transactionType) {
             const qty = document.getElementById('modal-qty').value;
@@ -273,49 +233,28 @@
             
             const payload = {
                 exchange_segment: selectedOrder.symbol.includes("SENSEX") ? "bse_fo" : "nse_fo",
-                trading_symbol: selectedOrder.symbol,
-                transaction_type: transactionType,
-                quantity: qty.toString(),
-                price: price.toString(),
-                order_type: "L",
-                product: "NRML",
-                token: selectedOrder.token,
-                stoploss: sl,
-                target: target
+                trading_symbol: selectedOrder.symbol, transaction_type: transactionType,
+                quantity: qty.toString(), price: price.toString(), order_type: "L",
+                product: "NRML", token: selectedOrder.token, stoploss: sl, target: target
             };
 
             try {
                 const res = await fetch(`${API_BASE_URL}/trades/place-order?mode=${mode}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(payload)
                 });
-                
-                const data = await res.json();
-                if(res.ok) {
-                    closeOrderModal();
-                    switchTab('positions');
-                } else {
-                    alert("Error: " + data.detail);
-                }
-            } catch(e) {
-                alert("Order Request Failed.");
-            }
+                if(res.ok) { closeOrderModal(); switchTab('positions'); } 
+                else { const data = await res.json(); alert("Error: " + data.detail); }
+            } catch(e) { alert("Order Failed."); }
         }
 
         async function fetchPaperTrades() {
-            const container = document.getElementById('trades-container');
             const token = localStorage.getItem('saas_token');
             if(!token) return;
             try {
-                const response = await fetch(`${API_BASE_URL}/trades/open-positions?mode=${localStorage.getItem('trade_mode') || 'PAPER'}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if(response.ok) {
-                    const data = await response.json();
-                    renderTrades(data.positions);
-                }
-            } catch(e) { console.log(e); }
+                const response = await fetch(`${API_BASE_URL}/trades/open-positions?mode=${localStorage.getItem('trade_mode') || 'PAPER'}`, { headers: { 'Authorization': `Bearer ${token}` }});
+                if(response.ok) { const data = await response.json(); renderTrades(data.positions); }
+            } catch(e) {}
         }
 
         function renderTrades(positions) {
@@ -330,13 +269,9 @@
                 const pnl = pos.mtm || 0; totalMtm += pnl;
                 const pnlColor = pnl >= 0 ? 'text-success' : 'text-danger';
                 const posColor = pos.transaction === 'B' ? 'bg-success' : 'bg-danger';
-                
-                let slTargetHtml = '';
-                if(pos.sl > 0 || pos.target > 0) {
-                    slTargetHtml = `<div class="text-[9px] text-slate-500 mt-1 bg-slate-800 inline-block px-1.5 py-0.5 rounded">SL: <span class="text-danger">₹${pos.sl||0}</span> | TGT: <span class="text-success">₹${pos.target||0}</span></div>`;
-                }
+                let slTargetHtml = pos.sl > 0 || pos.target > 0 ? `<div class="text-[9px] text-slate-500 mt-1 bg-slate-800 inline-block px-1.5 py-0.5 rounded">SL: <span class="text-danger">₹${pos.sl}</span> | TGT: <span class="text-success">₹${pos.target}</span></div>` : '';
 
-                const html = `
+                container.innerHTML += `
                 <div class="bg-darkCard border border-slate-700/50 p-3 rounded-lg flex justify-between shadow-md mb-2">
                     <div>
                         <div class="flex items-center gap-2 mb-1">
@@ -349,10 +284,9 @@
                     </div>
                     <div class="text-right flex flex-col justify-between items-end">
                         <span class="text-sm font-black ${pnlColor}">₹${Math.abs(pnl).toFixed(2)}</span>
-                        <button onclick="squareOff('${pos.id}')" class="mt-1 text-[9px] bg-slate-800 text-slate-300 border border-slate-600 px-2 py-1 hover:bg-danger hover:text-white transition rounded">SQUARE OFF</button>
+                        <button onclick="squareOff('${pos.id}')" class="mt-1 text-[9px] bg-slate-800 text-slate-300 border border-slate-600 px-3 py-1.5 hover:bg-danger hover:text-white rounded">SQUARE OFF</button>
                     </div>
                 </div>`;
-                container.innerHTML += html;
             });
             updateTotalPNL(totalMtm);
         }
@@ -367,18 +301,14 @@
             const token = localStorage.getItem('saas_token');
             if(!token) return;
             wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}&mode=${localStorage.getItem('trade_mode') || 'PAPER'}`);
-            wsConnection.onmessage = (e) => {
-                const data = JSON.parse(e.data);
-                if(data.positions) renderTrades(data.positions);
-            };
+            wsConnection.onmessage = (e) => { const data = JSON.parse(e.data); if(data.positions) renderTrades(data.positions); };
             wsConnection.onclose = () => setTimeout(connectWebSocket, 5000);
         }
 
         async function panicExitAll() {
             if(confirm("🚨 SQUARE OFF ALL?")) {
                 const token = localStorage.getItem('saas_token');
-                const mode = localStorage.getItem('trade_mode') || 'PAPER';
-                await fetch(`${API_BASE_URL}/trades/exit-all?mode=${mode}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+                await fetch(`${API_BASE_URL}/trades/exit-all?mode=${localStorage.getItem('trade_mode') || 'PAPER'}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
                 fetchPaperTrades();
             }
         }

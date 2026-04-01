@@ -18,7 +18,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_kotak_client(user_id: str):
     if user_id not in KOTAK_SESSIONS:
-        raise Exception("RAW ERROR: Kotak Live Session is missing in KOTAK_SESSIONS dictionary.")
+        raise Exception("RAW ERROR: Kotak Live Session is missing. Please click 'Start Daily Session'.")
     return KOTAK_SESSIONS[user_id]
 
 @router.get("/option-chain")
@@ -32,12 +32,12 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         df = pd.DataFrame(cursor)
         
         if df.empty or "5" not in df.columns.astype(str): 
-            raise Exception("RAW ERROR: MongoDB fo_master collection is empty or missing column '5'.")
+            raise Exception("RAW ERROR: MongoDB fo_master collection is empty or missing columns.")
 
         df.columns = df.columns.astype(str)
         
         # =========================================
-        # 1. FETCH FUTURE PRICE (RAW ERROR HANDLING)
+        # 1. FETCH FUTURE PRICE (Fixed Parsing)
         # =========================================
         search_sym = conf["FutureSymbol"]
         fut_row = df[df["5"] == search_sym]
@@ -53,7 +53,10 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
         except Exception as e:
             raise Exception(f"RAW API EXCEPTION (Future Quotes): {str(e)}")
 
-        if fut_resp and isinstance(fut_resp, dict) and 'data' in fut_resp and len(fut_resp['data']) > 0:
+        # 🟢 THE REAL FIX: Checking if it's a List or a Dict
+        if isinstance(fut_resp, list) and len(fut_resp) > 0:
+            spot_price = float(fut_resp[0].get('ltp', fut_resp[0].get('lastPrice', 0)))
+        elif isinstance(fut_resp, dict) and 'data' in fut_resp and len(fut_resp['data']) > 0:
             spot_price = float(fut_resp['data'][0].get('ltp', fut_resp['data'][0].get('lastPrice', 0)))
 
         if spot_price == 0:
@@ -113,17 +116,20 @@ async def get_option_chain(symbol: str = "NIFTY", current_user: dict = Depends(g
             raise Exception(f"RAW ERROR: Option tokens list is empty for prefix {prefix}.")
 
         # =========================================
-        # 5. FETCH LIVE PREMIUMS (RAW ERROR HANDLING)
+        # 5. FETCH LIVE PREMIUMS (Fixed Parsing)
         # =========================================
         try:
             opt_resp = client.quotes(instrument_tokens=req_tokens, quote_type="all")
         except Exception as e:
             raise Exception(f"RAW API EXCEPTION (Options Quotes): {str(e)}")
              
-        if not opt_resp or not isinstance(opt_resp, dict) or 'data' not in opt_resp:
+        # 🟢 FIX: Same List vs Dict fix for Option chain premiums
+        items = opt_resp if isinstance(opt_resp, list) else opt_resp.get('data', [])
+        
+        if not items:
             raise Exception(f"RAW API RESPONSE (Invalid Options Data): {opt_resp}")
 
-        for item in opt_resp['data']:
+        for item in items:
             tk = str(item.get('exchange_token', item.get('tk')))
             for st, data in strike_map.items():
                 if data.get("ce_token") == tk:

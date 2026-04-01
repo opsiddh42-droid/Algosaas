@@ -23,12 +23,9 @@
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
-        
-        /* Adjusted for mobile: Chart gets 35% height, bottom panel gets the rest */
         #tv_chart_container { height: 35vh; width: 100%; }
         .panel-area { height: calc(65vh - 60px); overflow-y: auto; padding-bottom: 20px;}
-        
-        .modal-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); }
+        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(3px); }
     </style>
 </head>
 <body class="h-screen flex flex-col">
@@ -89,49 +86,44 @@
         <div id="trades-container" class="space-y-2 pb-6"></div>
     </section>
 
-    <div id="order-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-end justify-center sm:items-center">
-        <div class="bg-darkCard border-t sm:border border-slate-600 sm:rounded-xl rounded-t-2xl p-5 w-full max-w-sm shadow-2xl animate-[slideUp_0.2s_ease-out]">
+    <div id="order-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4">
+        <div class="bg-darkCard border border-slate-600 rounded-xl p-4 w-full max-w-sm shadow-2xl">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-sm font-bold text-white flex items-center gap-2">⚡ Place Order</h3>
-                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+                <h3 class="text-sm font-bold text-white" id="modal-title">Place Order</h3>
+                <button onclick="closeOrderModal()" class="text-slate-400 hover:text-white font-bold">&times;</button>
             </div>
             
-            <div class="mb-4 bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center">
-                <div>
-                    <p class="text-[10px] text-slate-400">Selected Option</p>
-                    <p class="text-sm font-black text-white" id="modal-symbol">NIFTY26APR22900CE</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] text-slate-400">Live Price</p>
-                    <p class="text-sm text-primary font-bold">₹<span id="modal-ltp">0.00</span></p>
-                </div>
+            <div class="mb-4">
+                <p class="text-xs text-slate-400 mb-1">Symbol</p>
+                <p class="text-sm font-black text-white" id="modal-symbol">NIFTY26APR22900CE</p>
+                <p class="text-xs text-primary font-bold mt-1">LTP: ₹<span id="modal-ltp">0.00</span></p>
             </div>
 
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Quantity (Lots)</label>
-                    <input type="number" id="modal-qty" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-primary" value="50">
+                    <input type="number" id="modal-qty" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-primary" value="50">
                 </div>
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Entry Price</label>
-                    <input type="number" id="modal-price" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-primary">
+                    <input type="number" id="modal-price" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-primary">
                 </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 mb-5">
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Stoploss (₹)</label>
-                    <input type="number" id="modal-sl" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-danger">
+                    <input type="number" id="modal-sl" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-danger">
                 </div>
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1">Target (₹)</label>
-                    <input type="number" id="modal-target" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded px-2 py-1.5 text-sm outline-none focus:border-success">
+                    <input type="number" id="modal-target" placeholder="0" class="w-full bg-slate-800 border border-slate-600 text-white rounded p-2 text-sm outline-none focus:border-success">
                 </div>
             </div>
 
             <div class="flex gap-2">
-                <button onclick="executeOrder('B')" class="flex-1 bg-success hover:bg-green-600 text-white font-bold py-3 rounded shadow-[0_0_10px_rgba(16,185,129,0.4)] transition uppercase text-xs">BUY</button>
-                <button onclick="executeOrder('S')" class="flex-1 bg-danger hover:bg-red-600 text-white font-bold py-3 rounded shadow-[0_0_10px_rgba(239,68,68,0.4)] transition uppercase text-xs">SELL</button>
+                <button onclick="executeOrder('B')" class="flex-1 bg-success hover:bg-green-600 text-white font-bold py-2 rounded">BUY</button>
+                <button onclick="executeOrder('S')" class="flex-1 bg-danger hover:bg-red-600 text-white font-bold py-2 rounded">SELL</button>
             </div>
         </div>
     </div>
@@ -165,7 +157,6 @@
             
             document.getElementById(`panel-${tab}`).classList.remove('hidden');
             document.getElementById(`tab-${tab}`).className = "flex-1 py-2 text-xs font-bold text-primary border-b-2 border-primary transition";
-            
             if(tab === 'positions') fetchPaperTrades();
         }
 
@@ -191,6 +182,16 @@
             if(sym === 'BANKNIFTY') defaultQty = 15;
             if(sym === 'SENSEX') defaultQty = 10;
             document.getElementById('modal-qty').value = defaultQty;
+        }
+
+        // 🟢 NAYA FUNCTION: Strike par click karne par chart update karega
+        function updateOptionChart(optSymbol) {
+            if(tvWidget) {
+                // Free TradingView uses NSE: prefix
+                tvWidget.setSymbol("NSE:" + optSymbol, "5");
+            }
+            // Chart top par hai, thoda smooth scroll kar dete hain
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         async function fetchOptionChain(symName = null) {
@@ -226,7 +227,7 @@
                 const ceSymbol = `${symbol}${expiry}${item.strike}CE`;
                 const peSymbol = `${symbol}${expiry}${item.strike}PE`;
 
-                // 🟢 FIX: Poora CE box aur PE box clickable bana diya. Click karte hi order modal open hoga!
+                // 🟢 UI UPDATE: Beech wale strike par "onclick" aur hover effect laga diya 
                 const html = `
                 <div class="grid grid-cols-3 items-center text-center ${bgClass} border rounded-lg p-2 shadow-sm mb-1">
                     <div class="flex flex-col items-center cursor-pointer hover:bg-slate-700/50 p-1 rounded transition" onclick="openOrderModal('${ceSymbol}', ${item.ce_ltp}, '${item.ce_token}')">
@@ -234,7 +235,9 @@
                         <div class="bg-slate-700 text-white text-[9px] px-2 py-0.5 rounded font-bold">TRADE</div>
                     </div>
                     
-                    <div class="text-sm font-black text-white ${isAtm ? 'text-primary' : ''}">${item.strike}</div>
+                    <div class="text-sm font-black text-white ${isAtm ? 'text-primary' : ''} cursor-pointer hover:underline hover:text-blue-400 transition" onclick="updateOptionChart('${ceSymbol}')" title="Click to open CE Chart">
+                        ${item.strike}
+                    </div>
                     
                     <div class="flex flex-col items-center cursor-pointer hover:bg-slate-700/50 p-1 rounded transition" onclick="openOrderModal('${peSymbol}', ${item.pe_ltp}, '${item.pe_token}')">
                         <span class="text-xs font-bold text-danger mb-1">₹${item.pe_ltp.toFixed(2)}</span>
@@ -245,15 +248,14 @@
             });
         }
 
-        // --- ORDER MODAL LOGIC ---
+        // --- BAAKI ORDER MODAL AUR POSITIONS JS SAME HAI ---
         function openOrderModal(symbol, ltp, token) {
             selectedOrder = { symbol, ltp, token };
             document.getElementById('modal-symbol').innerText = symbol;
             document.getElementById('modal-ltp').innerText = ltp.toFixed(2);
-            document.getElementById('modal-price').value = ltp.toFixed(2); // Auto fill current LTP
+            document.getElementById('modal-price').value = ltp.toFixed(2);
             document.getElementById('modal-sl').value = "";
             document.getElementById('modal-target').value = "";
-            
             document.getElementById('order-modal').classList.remove('hidden');
         }
 
@@ -292,7 +294,7 @@
                 const data = await res.json();
                 if(res.ok) {
                     closeOrderModal();
-                    switchTab('positions'); // Order lagte hi seedha Positions tab par bheje
+                    switchTab('positions');
                 } else {
                     alert("Error: " + data.detail);
                 }
@@ -301,7 +303,6 @@
             }
         }
 
-        // --- FETCH TRADES & WS ---
         async function fetchPaperTrades() {
             const container = document.getElementById('trades-container');
             const token = localStorage.getItem('saas_token');
@@ -330,7 +331,6 @@
                 const pnlColor = pnl >= 0 ? 'text-success' : 'text-danger';
                 const posColor = pos.transaction === 'B' ? 'bg-success' : 'bg-danger';
                 
-                // Show SL and Target visually
                 let slTargetHtml = '';
                 if(pos.sl > 0 || pos.target > 0) {
                     slTargetHtml = `<div class="text-[9px] text-slate-500 mt-1 bg-slate-800 inline-block px-1.5 py-0.5 rounded">SL: <span class="text-danger">₹${pos.sl||0}</span> | TGT: <span class="text-success">₹${pos.target||0}</span></div>`;

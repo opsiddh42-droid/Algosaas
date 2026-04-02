@@ -135,7 +135,7 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
     if not best_ce or not best_pe:
         return {"status": "error", "message": f"Could not find {index} CE/PE below ₹{target_premium}"}
 
-    # 🟢 4. CALCULATE TRIGGERS & LIMITS (10 Point Buffer with Tick Formatting)
+    # 4. CALCULATE TRIGGERS & LIMITS (10 Point Buffer with Tick Formatting)
     ce_ltp = round_to_tick(best_ce["ltp"])
     pe_ltp = round_to_tick(best_pe["ltp"])
 
@@ -145,15 +145,22 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
     pe_sl_trigger = round_to_tick(pe_ltp * (1 + sl_pct/100))
     pe_sl_limit = round_to_tick(pe_sl_trigger + 10.0)
 
-    # 🟢 5. FIRE STRICT ORDERS TO KOTAK NEO
+    # 🟢 5. FIRE STRICT ORDERS TO KOTAK NEO (WITH RAW ERROR DUMP)
     if mode == "REAL":
         try:
-            # Custom function to fire and explicitly check errors
             def fire_order(tag_name, **kwargs):
-                resp = client.place_order(**kwargs)
+                try:
+                    resp = client.place_order(**kwargs)
+                except Exception as api_err:
+                    # Agar Kotak SDK code me hi crash ho gaya
+                    raise Exception(f"SDK Exception -> {str(api_err)}")
+                
+                # 🔥 EXACT RAW ERROR DUMP LOGIC 🔥
                 if isinstance(resp, dict) and resp.get("stat") != "Ok":
-                    err_msg = resp.get("emsg", resp.get("message", "Unknown Kotak Error"))
-                    raise Exception(f"{tag_name} Failed: {err_msg}")
+                    # Pura dictionary string me convert karke user ko dikhao
+                    raw_error = str(resp)
+                    raise Exception(f"API Reject -> {raw_error}")
+                
                 return resp
 
             # -- ENTRY ORDERS (Limit Sell at current LTP) --
@@ -165,7 +172,8 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
             fire_order("PE SL", exchange_segment=exch_seg, product="NRML", price=str(pe_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(pe_sl_trigger), tag="algo_sl")
 
         except Exception as e:
-            return {"status": "error", "message": f"Kotak Rejected ❌: {str(e)}"}
+            # Ye seedha aapki screen par raw format me popup hoga
+            return {"status": "error", "message": f"Kotak Error: {str(e)}"}
 
     # 6. SAVE TO DB FOR UI TRACKING
     db_col = get_collection("real_trades" if mode == "REAL" else "paper_trades")

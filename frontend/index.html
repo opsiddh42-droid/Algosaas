@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AlgoSaaS Pro | Premium Terminal</title>
+    <title>AlgoSaaS Pro | Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
@@ -11,732 +11,291 @@
             theme: {
                 extend: {
                     fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
-                    colors: {
-                        darkBase: '#020617', // Very deep slate (almost black but richer)
-                        darkCard: 'rgba(30, 41, 59, 0.7)', // Slate 800 with transparency
-                        primary: '#3b82f6',
-                        primaryHover: '#2563eb',
-                        success: '#10b981',
-                        danger: '#f43f5e' // Rose red for modern feel
-                    }
+                    colors: { primary: '#3b82f6', success: '#10b981', danger: '#f43f5e' }
                 }
             }
         }
     </script>
     <style>
         body { 
-            background-color: #020617; 
-            color: #f8fafc; 
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            background-color: #020617; color: #f8fafc; 
+            background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
             background-attachment: fixed;
         }
         .hidden { display: none !important; }
-        
-        /* Modern Glass Effect */
-        .glass-card {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-        }
-        
+        .glass-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); }
+        .modal-overlay { background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 100;}
         .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #fff; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        input:-webkit-autofill {
-            -webkit-box-shadow: 0 0 0 30px #0f172a inset !important;
-            -webkit-text-fill-color: white !important;
-        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col relative selection:bg-primary/30">
 
     <div id="auth-section" class="flex-1 flex items-center justify-center p-4 relative z-10">
         <div class="glass-card w-full max-w-md p-8 rounded-3xl transition-all duration-500 relative overflow-hidden">
-            <div class="absolute -top-20 -right-20 w-40 h-40 bg-primary/20 rounded-full blur-3xl"></div>
-            
             <div class="text-center mb-8 relative z-10">
-                <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-4 shadow-lg shadow-blue-500/30">
-                    <span class="text-2xl">⚡</span>
-                </div>
+                <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-4 shadow-lg"><span class="text-2xl">⚡</span></div>
                 <h1 class="text-3xl font-extrabold text-white tracking-tight">AlgoSaaS</h1>
-                <p id="auth-subtitle" class="text-slate-400 mt-1 font-medium text-sm">Login to your trading terminal</p>
+                <p class="text-slate-400 mt-1 font-medium text-sm">Login to Dashboard</p>
             </div>
             
             <form id="login-form" onsubmit="handleLogin(event)" class="relative z-10">
                 <div class="mb-5">
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Email Address</label>
-                    <input type="email" id="login-email" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder-slate-600" placeholder="trader@algosaas.com">
+                    <input type="email" id="login-email" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-primary outline-none" placeholder="trader@algosaas.com">
                 </div>
                 <div class="mb-6">
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Password</label>
-                    <input type="password" id="login-password" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder-slate-600" placeholder="••••••••">
+                    <input type="password" id="login-password" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-primary outline-none" placeholder="••••••••">
                 </div>
-                <button type="submit" id="login-btn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] flex justify-center items-center gap-2">
-                    <span>Secure Login</span>
-                </button>
-                <div id="login-error" class="text-danger text-sm font-semibold text-center mt-4 hidden"></div>
-                <div class="text-center mt-6">
-                    <p class="text-sm text-slate-400">Don't have an account? <a href="#" onclick="toggleAuth('signup')" class="text-primary hover:text-blue-400 transition-colors font-bold">Sign Up</a></p>
-                </div>
-            </form>
-
-            <form id="signup-form" class="hidden relative z-10" onsubmit="handleSignup(event)">
-                <div class="mb-4">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Full Name</label>
-                    <input type="text" id="signup-name" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder-slate-600" placeholder="Omprakash Nath">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mobile Number</label>
-                    <input type="tel" id="signup-mobile" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder-slate-600" placeholder="9876543210">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Email Address</label>
-                    <input type="email" id="signup-email" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder-slate-600" placeholder="om@example.com">
-                </div>
-                <div class="mb-6">
-                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Password</label>
-                    <input type="password" id="signup-password" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder-slate-600" placeholder="Create a strong password">
-                </div>
-                <button type="submit" id="signup-btn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2">
-                    <span>Create Account</span>
-                </button>
-                <div id="signup-error" class="text-danger text-sm font-semibold text-center mt-4 hidden"></div>
-                <div id="signup-success" class="text-success text-sm font-semibold text-center mt-4 hidden">Account created! Please login.</div>
-                <div class="text-center mt-6">
-                    <p class="text-sm text-slate-400">Already have an account? <a href="#" onclick="toggleAuth('login')" class="text-primary hover:text-blue-400 transition-colors font-bold">Login</a></p>
-                </div>
+                <button type="submit" id="login-btn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-lg">Secure Login</button>
+                <div id="login-error" class="text-danger text-sm text-center mt-4 hidden"></div>
             </form>
         </div>
     </div>
 
     <div id="dashboard-section" class="hidden flex-1 flex flex-col z-10">
-        
-        <header class="glass-card border-b-0 border-slate-800 p-4 sticky top-0 z-50 rounded-b-3xl mx-2 mt-2">
+        <header class="glass-card border-b-0 p-4 sticky top-0 z-50 rounded-b-3xl mx-2 mt-2">
             <div class="flex justify-between items-center">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                        <span class="text-lg">⚡</span>
-                    </div>
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center"><span class="text-lg">⚡</span></div>
                     <div>
-                        <h2 class="text-xl font-extrabold text-white leading-none">AlgoSaaS</h2>
-                        <p class="text-xs text-blue-400 font-semibold mt-1" id="welcome-msg">Welcome, User</p>
+                        <h2 class="text-xl font-extrabold text-white">AlgoSaaS</h2>
+                        <p class="text-xs text-blue-400 font-semibold" id="welcome-msg">Welcome</p>
                     </div>
                 </div>
-                
                 <div class="flex flex-col items-end gap-2">
-                    <div class="flex items-center gap-3">
-                        <div class="flex items-center bg-slate-900/80 rounded-lg p-1 border border-slate-700/50 backdrop-blur-sm">
-                            <button id="btn-mode-paper" onclick="setTradeMode('PAPER')" class="px-3 py-1.5 text-xs font-bold rounded-md bg-orange-500 text-white shadow-md transition-all">📝 Paper</button>
-                            <button id="btn-mode-real" onclick="setTradeMode('REAL')" class="px-3 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all">💸 Real</button>
-                        </div>
-                        <button onclick="logout()" class="text-xs bg-red-500/10 text-rose-400 border border-rose-500/30 px-3 py-1.5 rounded-lg hover:bg-rose-500 hover:text-white transition font-bold">Logout</button>
-                    </div>
-                    <div class="flex items-center gap-2 px-1">
-                        <span id="ws-indicator" class="w-2.5 h-2.5 bg-danger rounded-full shadow-[0_0_8px_#f43f5e] relative">
-                            <span class="absolute inline-flex h-full w-full rounded-full bg-danger opacity-75 animate-ping"></span>
-                        </span>
-                        <span id="mode-text" class="text-[10px] text-orange-400 uppercase tracking-widest font-black">PAPER MODE</span>
-                    </div>
+                    <button onclick="logout()" class="text-xs bg-red-500/10 text-rose-400 border border-rose-500/30 px-3 py-1.5 rounded-lg font-bold">Logout</button>
                 </div>
             </div>
         </header>
 
         <main class="p-4 flex-1 max-w-lg mx-auto w-full">
             
-            <div class="relative mb-6 group">
-                <div class="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl blur opacity-20 group-hover:opacity-30 transition-opacity duration-500"></div>
-                <div class="glass-card rounded-2xl p-6 text-center relative border border-slate-700/50">
-                    <h3 class="text-slate-400 text-xs font-bold tracking-[0.2em] uppercase mb-2">Total MTM (P&L)</h3>
-                    <div id="live-pnl" class="text-5xl font-extrabold text-slate-200 tracking-tight transition-colors duration-300">+ ₹0.00</div>
-                </div>
-            </div>
-
+            <!-- ALGO BOT CARD -->
             <div class="glass-card rounded-2xl p-5 mb-6 border border-emerald-500/20 relative overflow-hidden">
                 <div class="absolute -left-6 -bottom-6 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
-                
                 <div class="flex justify-between items-start mb-4 relative z-10">
                     <div>
-                        <h3 class="font-bold text-lg text-white flex items-center gap-2">🤖 Smart Algo Bot</h3>
+                        <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                            🤖 Smart Algo Bot 
+                            <button onclick="openAlgoSettings()" class="text-slate-400 hover:text-white transition" title="Strategy Settings">⚙️</button>
+                        </h3>
                         <p id="algo-plan" class="text-xs text-emerald-400 font-bold mt-1">Loading Plan...</p>
                     </div>
-                    
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="algo-toggle" class="sr-only peer" onchange="toggleAlgo()">
-                        <div class="w-14 h-7 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                        <div class="w-14 h-7 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500"></div>
                     </label>
                 </div>
-                
                 <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-800 relative z-10 flex justify-between items-center">
                     <div>
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Status</p>
+                        <p class="text-[10px] text-slate-400 uppercase font-bold">Status</p>
                         <p id="algo-status-text" class="text-sm font-black text-slate-300 mt-0.5">⚪ Offline</p>
                     </div>
-                    <div class="text-right">
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Strategy</p>
-                        <p class="text-sm font-black text-slate-300 mt-0.5">Sell &lt; ₹12/₹6 (SL 200%)</p>
-                    </div>
                 </div>
-
-                <button onclick="testAlgoExecution()" id="test-algo-btn" class="w-full mt-4 bg-slate-800/80 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-xs font-bold transition border border-slate-600/50 relative z-10 hidden shadow-sm">
+                <button onclick="testAlgoExecution()" id="test-algo-btn" class="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-bold transition border border-slate-600/50 relative z-10 hidden">
                     ⚙️ Force Execute Now (Manual Test)
                 </button>
             </div>
 
-            <div class="glass-card rounded-2xl p-5 mb-6 border border-blue-500/20 relative overflow-hidden">
-                <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
-                <h3 class="font-bold text-lg text-white mb-1 flex items-center gap-2">📊 Market Data Sync</h3>
-                <p class="text-xs text-slate-400 mb-4">Fetch latest weekly expiry strikes for Nifty & Sensex to ensure accurate Option Chains.</p>
-                <button onclick="updateWeeklyExpiry()" id="sync-btn" class="w-full bg-slate-800/80 hover:bg-slate-700 text-white border border-slate-600/50 font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 group shadow-sm">
-                    <span id="btn-icon" class="group-hover:rotate-180 transition-transform duration-500">🔄</span>
-                    <span id="btn-text">Update Weekly Expiry</span>
-                </button>
-            </div>
-
-            <div id="broker-box" class="glass-card rounded-2xl p-5 mb-6 border border-slate-700/50">
-                <h3 class="font-bold text-lg text-white mb-3 flex items-center gap-2">🏦 Broker Connection</h3>
-                <div class="flex justify-between items-center bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-                    <span class="font-semibold text-slate-300">Kotak Neo</span>
-                    <span id="kotak-status" class="text-xs px-2.5 py-1 bg-rose-500/20 text-rose-400 rounded-md font-bold uppercase tracking-wide">Inactive</span>
-                </div>
-                <button onclick="openKotakModal()" id="connect-kotak-btn" class="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white py-3.5 rounded-xl text-sm font-bold transition border border-slate-600/50 shadow-sm">
-                    Configure Kotak Neo
+            <!-- MARKET DATA -->
+            <div class="glass-card rounded-2xl p-5 mb-6 border border-blue-500/20 relative">
+                <h3 class="font-bold text-lg text-white mb-1">📊 Market Data Sync</h3>
+                <p class="text-xs text-slate-400 mb-4">Fetch latest weekly expiry strikes.</p>
+                <button onclick="updateWeeklyExpiry()" id="sync-btn" class="w-full bg-slate-800/80 hover:bg-slate-700 text-white font-bold py-3.5 rounded-xl border border-slate-600/50 transition-all">
+                    <span id="btn-text">🔄 Update Weekly Expiry</span>
                 </button>
             </div>
             
-            <div class="grid grid-cols-2 gap-4 mb-8">
-                <button onclick="window.location.href='optionchain.html'" class="glass-card p-5 rounded-2xl text-center hover:-translate-y-1 hover:border-blue-500/50 transition-all duration-300 group border border-slate-700/50">
-                    <div class="text-3xl mb-2 group-hover:scale-110 transition-transform">⛓️</div>
-                    <div class="text-sm font-bold text-slate-200">Option Chain</div>
-                </button>
-                <button onclick="window.location.href='strategy.html'" class="glass-card p-5 rounded-2xl text-center hover:-translate-y-1 hover:border-purple-500/50 transition-all duration-300 group border border-slate-700/50">
-                    <div class="text-3xl mb-2 group-hover:scale-110 transition-transform">🤖</div>
-                    <div class="text-sm font-bold text-slate-200">Strategies</div>
-                </button>
-            </div>
-
-            <button id="panic-btn" onclick="triggerExitAll()" class="w-full bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-lg py-4.5 rounded-2xl shadow-[0_0_20px_rgba(244,63,94,0.4)] mt-auto active:scale-95 transition-all uppercase tracking-widest border border-rose-400/30 flex items-center justify-center gap-2">
-                <span>🚨</span> Panic Exit All
+            <button onclick="window.location.href='optionchain.html'" class="w-full glass-card p-5 rounded-2xl text-center hover:border-blue-500/50 transition-all duration-300 mb-4 border border-slate-700/50 flex justify-center items-center gap-3">
+                <div class="text-3xl">⛓️</div>
+                <div class="text-xl font-extrabold text-white">Open Option Chain</div>
             </button>
+            
         </main>
     </div>
 
-    <div id="kotak-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <div class="glass-card w-full max-w-md rounded-3xl border border-slate-700 p-6 shadow-2xl max-h-[90vh] overflow-y-auto animate-[slideUp_0.2s_ease-out]">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-white flex items-center gap-2">🏦 Kotak Setup</h3>
-                <button onclick="closeKotakModal()" class="text-slate-400 hover:text-white text-3xl leading-none bg-slate-800 w-8 h-8 rounded-full flex items-center justify-center pb-1 transition-colors">&times;</button>
+    <!-- 🟢 ALGO SETTINGS MODAL 🟢 -->
+    <div id="algo-settings-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center p-4">
+        <div class="glass-card w-full max-w-sm rounded-3xl border border-slate-700 p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">⚙️ Strategy Settings</h3>
+                <button onclick="closeAlgoSettings()" class="text-slate-400 hover:text-white bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl">&times;</button>
             </div>
-            
-            <form id="kotak-full-form" onsubmit="handleKotakConnect(event)">
-                <div class="mb-4">
-                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Account Name</label>
-                    <input type="text" id="kotak-name" required class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors" placeholder="Omprakash Nath">
-                </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-4 mb-5">
+                <label class="flex items-center justify-between cursor-pointer">
+                    <span class="text-sm font-bold text-white">Use Default Strategy</span>
+                    <input type="checkbox" id="cfg-default" class="sr-only peer" onchange="toggleCustomSettings()">
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary relative"></div>
+                </label>
+                <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">Mon/Fri: Nifty ₹6 | Tue: Sensex ₹12. Auto executes at 10:00 AM with 200% SL.</p>
+            </div>
+
+            <div id="custom-settings-div" class="space-y-4 transition-all">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Select Index</label>
+                    <select id="cfg-index" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-primary outline-none">
+                        <option value="NIFTY">NIFTY 50</option>
+                        <option value="BANKNIFTY">BANKNIFTY</option>
+                        <option value="SENSEX">SENSEX</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Mobile</label>
-                        <input type="tel" id="kotak-mobile" required class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors" placeholder="+91XXXXXXXXXX">
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Max Premium (₹)</label>
+                        <input type="number" id="cfg-premium" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-primary outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">UCC Code</label>
-                        <input type="text" id="kotak-ucc" required class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none uppercase transition-colors" placeholder="ABCD123">
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Stoploss (%)</label>
+                        <input type="number" id="cfg-sl" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-danger outline-none" placeholder="e.g. 200">
                     </div>
                 </div>
-
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">MPIN</label>
-                        <input type="password" id="kotak-mpin" required class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors" placeholder="123456">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Initial TOTP</label>
-                        <input type="text" id="kotak-full-totp" required class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors" placeholder="6-digit">
-                    </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Entry Time</label>
+                    <input type="time" id="cfg-time" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-primary outline-none">
                 </div>
+            </div>
 
-                <div class="mb-6">
-                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Consumer Key</label>
-                    <input type="text" id="kotak-consumer-key" required class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors" placeholder="API Key">
-                </div>
-                
-                <button type="submit" id="kotak-submit-btn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] flex justify-center items-center gap-2">
-                    <span>Connect & Save</span>
-                </button>
-            </form>
-
-            <form id="kotak-totp-form" class="hidden" onsubmit="handleKotakTotpOnly(event)">
-                <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl mb-6 text-center">
-                    <div class="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-2 text-emerald-400 text-lg">✓</div>
-                    <p class="text-sm text-emerald-400 font-bold">Profile Saved Securely</p>
-                    <p class="text-xs text-slate-400 mt-1">Enter today's Authenticator code.</p>
-                </div>
-
-                <div class="mb-6">
-                    <input type="text" id="kotak-quick-totp" required class="w-full bg-slate-900/80 border border-slate-600 rounded-xl px-4 py-5 text-center text-white text-3xl font-black tracking-[0.5em] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder-slate-700" placeholder="------" maxlength="6">
-                </div>
-                
-                <button type="submit" id="kotak-totp-btn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2">
-                    <span>Start Live Session</span>
-                </button>
-                
-                <div class="text-center mt-5">
-                    <button type="button" onclick="resetKotakProfile()" class="text-xs font-semibold text-slate-500 hover:text-rose-400 transition-colors">Setup a different account</button>
-                </div>
-            </form>
-
-            <div id="kotak-error" class="text-rose-400 text-sm font-semibold text-center mt-4 hidden"></div>
+            <button onclick="saveAlgoConfig()" class="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-blue-500/30">
+                Save Settings
+            </button>
         </div>
     </div>
 
     <script>
         const API_BASE_URL = "https://algosaas.onrender.com/api/v1"; 
-        const WS_BASE_URL = "wss://algosaas.onrender.com/ws/live-data";
-        
-        let wsConnection = null;
-
-        // --- 🤖 ALGO BOT LOGIC ---
-        async function fetchAlgoStatus() {
-            const token = localStorage.getItem('saas_token');
-            if(!token) return;
-            try {
-                const res = await fetch(`${API_BASE_URL}/algo/status`, { headers: { 'Authorization': `Bearer ${token}` }});
-                const data = await res.json();
-                if(res.ok) {
-                    document.getElementById('algo-toggle').checked = data.is_active;
-                    document.getElementById('algo-plan').innerText = `Today: ${data.plan_today}`;
-                    
-                    const statusText = document.getElementById('algo-status-text');
-                    if(data.is_active) {
-                        if(data.executed_today) statusText.innerHTML = "🟢 Trades Running";
-                        else statusText.innerHTML = "🟡 Waiting for 10:00 AM";
-                        document.getElementById('test-algo-btn').classList.remove('hidden');
-                    } else {
-                        statusText.innerHTML = "⚪ Offline";
-                        document.getElementById('test-algo-btn').classList.add('hidden');
-                    }
-                }
-            } catch(e) { console.log(e); }
-        }
-
-        async function toggleAlgo() {
-            const token = localStorage.getItem('saas_token');
-            const toggle = document.getElementById('algo-toggle');
-            try {
-                const res = await fetch(`${API_BASE_URL}/algo/toggle`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
-                const data = await res.json();
-                if(res.ok) {
-                    alert(data.message);
-                    fetchAlgoStatus();
-                } else {
-                    toggle.checked = !toggle.checked; // Revert if failed
-                }
-            } catch(e) { toggle.checked = !toggle.checked; }
-        }
-
-        async function testAlgoExecution() {
-            const token = localStorage.getItem('saas_token');
-            const mode = localStorage.getItem('trade_mode') || 'PAPER';
-            const btn = document.getElementById('test-algo-btn');
-            btn.innerText = "⏳ Executing...";
-            try {
-                const res = await fetch(`${API_BASE_URL}/algo/execute-now?mode=${mode}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
-                const data = await res.json();
-                if(res.ok) {
-                    alert("✅ " + data.message);
-                    fetchAlgoStatus();
-                } else {
-                    alert("❌ " + (data.message || data.detail));
-                }
-            } catch(e) { alert("Error connecting to Algo Server."); }
-            btn.innerText = "⚙️ Force Execute Now (Manual Test)";
-        }
-
-        // --- 🟢 SYNC MASTER LOGIC ---
-        async function updateWeeklyExpiry() {
-            const btn = document.getElementById('sync-btn');
-            const icon = document.getElementById('btn-icon');
-            const txt = document.getElementById('btn-text');
-            const token = localStorage.getItem('saas_token');
-
-            if(!confirm("Are you sure? This will download the latest Master CSV and extract Weekly Strikes to MongoDB.")) return;
-
-            btn.disabled = true;
-            icon.classList.add('animate-spin');
-            txt.innerText = "Syncing Expiry... Wait";
-            btn.classList.replace('bg-slate-800/80', 'bg-primary/20');
-            btn.classList.replace('border-slate-600/50', 'border-primary/50');
-
-            try {
-                const res = await fetch(`${API_BASE_URL}/market/sync-master`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const data = await res.json();
-                
-                if(res.ok) {
-                    alert("✅ " + data.message);
-                } else {
-                    alert("❌ Sync Failed: " + (data.detail || data.message));
-                }
-            } catch(e) {
-                alert("❌ Network Error: Could not reach the server.");
-            } finally {
-                btn.disabled = false;
-                icon.classList.remove('animate-spin');
-                txt.innerText = "Update Weekly Expiry";
-                btn.classList.replace('bg-primary/20', 'bg-slate-800/80');
-                btn.classList.replace('border-primary/50', 'border-slate-600/50');
-            }
-        }
-
-        // --- 📝 PAPER / REAL MODE SWITCHER ---
-        function setTradeMode(mode, isInit = false) {
-            const btnPaper = document.getElementById('btn-mode-paper');
-            const btnReal = document.getElementById('btn-mode-real');
-            const modeText = document.getElementById('mode-text');
-
-            if (mode === 'REAL') {
-                if (!isInit) {
-                    if(!confirm("⚠️ WARNING: You are switching to REAL trading mode. Real orders will be fired to Kotak Neo. Are you sure?")) {
-                        setTradeMode('PAPER'); 
-                        return;
-                    }
-                }
-                localStorage.setItem('trade_mode', 'REAL');
-                btnReal.className = "px-3 py-1.5 text-xs font-bold rounded-md bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)] transition-all";
-                btnPaper.className = "px-3 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all bg-transparent";
-                modeText.innerText = "REAL MODE";
-                modeText.className = "text-[10px] text-emerald-400 uppercase tracking-widest font-black";
-            } else {
-                localStorage.setItem('trade_mode', 'PAPER');
-                btnPaper.className = "px-3 py-1.5 text-xs font-bold rounded-md bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.4)] transition-all";
-                btnReal.className = "px-3 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all bg-transparent";
-                modeText.innerText = "PAPER MODE";
-                modeText.className = "text-[10px] text-orange-400 uppercase tracking-widest font-black";
-            }
-        }
 
         window.onload = () => {
-            const savedMode = localStorage.getItem('trade_mode') || 'PAPER';
-            setTradeMode(savedMode, true);
-
             const token = localStorage.getItem('saas_token');
             if(token) {
                 showDashboard(localStorage.getItem('saas_user'), localStorage.getItem('saas_kotak'));
-                fetchAlgoStatus(); // Load Algo Data on start
+                fetchAlgoStatus();
             }
         };
 
-        function toggleAuth(mode) {
-            const loginForm = document.getElementById('login-form');
-            const signupForm = document.getElementById('signup-form');
-            const subtitle = document.getElementById('auth-subtitle');
-            
-            if(mode === 'signup') {
-                loginForm.classList.add('hidden');
-                signupForm.classList.remove('hidden');
-                subtitle.innerText = "Create your free account";
-            } else {
-                signupForm.classList.add('hidden');
-                loginForm.classList.remove('hidden');
-                subtitle.innerText = "Login to your trading terminal";
-            }
-        }
-
-        function getErrorMessage(detail) {
-            if (!detail) return "Server error occurred!";
-            if (typeof detail === 'string') return detail;
-            if (Array.isArray(detail)) return detail.map(err => `${err.loc[err.loc.length - 1]}: ${err.msg}`).join(' | ');
-            return "Unknown error occurred";
-        }
-
-        // --- AUTH API ---
-        async function handleSignup(e) {
-            e.preventDefault();
-            const btn = document.getElementById('signup-btn');
-            const errorMsg = document.getElementById('signup-error');
-            const successMsg = document.getElementById('signup-success');
-            
-            const payload = {
-                full_name: document.getElementById('signup-name').value,
-                email: document.getElementById('signup-email').value,
-                mobile: document.getElementById('signup-mobile').value,
-                password: document.getElementById('signup-password').value
-            };
-
-            btn.innerHTML = '<span class="loader"></span> Creating...';
-            btn.disabled = true;
-            errorMsg.classList.add('hidden');
-            successMsg.classList.add('hidden');
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                if(response.ok) {
-                    successMsg.classList.remove('hidden');
-                    document.getElementById('signup-form').reset();
-                    setTimeout(() => toggleAuth('login'), 2000);
-                } else {
-                    errorMsg.innerText = getErrorMessage(data.detail);
-                    errorMsg.classList.remove('hidden');
-                }
-            } catch (err) {
-                errorMsg.innerText = "Server is sleeping or offline.";
-                errorMsg.classList.remove('hidden');
-            } finally {
-                btn.innerHTML = '<span>Create Account</span>';
-                btn.disabled = false;
-            }
-        }
-        
+        // --- AUTH & LOGIN LOGIC ---
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
-            const errorMsg = document.getElementById('login-error');
-
-            btn.innerHTML = '<span class="loader"></span> Authenticating...';
-            btn.disabled = true;
-            errorMsg.classList.add('hidden');
-
+            btn.innerHTML = '<span class="loader"></span>';
             try {
-                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                const res = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: document.getElementById('login-email').value, password: document.getElementById('login-password').value })
                 });
-
-                const data = await response.json();
-
-                if(response.ok) {
+                const data = await res.json();
+                if(res.ok) {
                     localStorage.setItem('saas_token', data.access_token);
                     localStorage.setItem('saas_user', data.user_name || "Trader");
-                    localStorage.setItem('saas_kotak', data.kotak_status || "Inactive");
-                    
-                    showDashboard(data.user_name || "Trader", data.kotak_status || "Inactive");
+                    showDashboard(data.user_name, data.kotak_status);
                     fetchAlgoStatus();
-                } else {
-                    errorMsg.innerText = getErrorMessage(data.detail);
-                    errorMsg.classList.remove('hidden');
-                }
-            } catch (err) {
-                errorMsg.innerText = "Server error. Please try again.";
-                errorMsg.classList.remove('hidden');
-            } finally {
-                btn.innerHTML = '<span>Secure Login</span>';
-                btn.disabled = false;
-            }
+                } else alert("Login Failed!");
+            } catch (err) { alert("Network Error"); }
+            btn.innerHTML = 'Secure Login';
         }
 
-        // --- UI & DASHBOARD ---
         function showDashboard(userName, kotakStatus) {
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('dashboard-section').classList.remove('hidden');
             document.getElementById('welcome-msg').innerText = `Welcome, ${userName}`;
-            updateKotakUI(kotakStatus);
-            connectWebSocket();
         }
 
-        function updateKotakUI(status) {
-            const kStatusEl = document.getElementById('kotak-status');
-            const kBtn = document.getElementById('connect-kotak-btn');
-            
-            if(status === 'Active') {
-                kStatusEl.innerText = 'Connected 🟢';
-                kStatusEl.className = 'text-xs px-2.5 py-1 bg-emerald-500/20 text-emerald-400 rounded-md font-bold uppercase tracking-wide';
-                kBtn.innerText = 'Start Daily Session (TOTP)';
-                kBtn.className = 'w-full mt-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white py-3.5 rounded-xl text-sm font-bold transition shadow-lg flex items-center justify-center gap-2';
-            } else {
-                kStatusEl.innerText = 'Not Saved 🔴';
-                kStatusEl.className = 'text-xs px-2.5 py-1 bg-rose-500/20 text-rose-400 rounded-md font-bold uppercase tracking-wide';
-                kBtn.innerText = 'Setup Kotak Neo';
-                kBtn.className = 'w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white py-3.5 rounded-xl text-sm font-bold transition border border-slate-600/50 shadow-sm';
-            }
-        }
+        function logout() { localStorage.clear(); location.reload(); }
 
-        function logout() {
-            if(confirm("Are you sure you want to logout?")) {
-                localStorage.removeItem('saas_token');
-                localStorage.removeItem('saas_user');
-                localStorage.removeItem('saas_kotak');
-                if(wsConnection) wsConnection.close();
-                document.getElementById('auth-section').classList.remove('hidden');
-                document.getElementById('dashboard-section').classList.add('hidden');
-                document.getElementById('login-password').value = ''; 
-                toggleAuth('login'); 
-            }
-        }
-
-        // --- KOTAK MODAL API ---
-        function openKotakModal() {
-            document.getElementById('kotak-modal').classList.remove('hidden');
-            document.getElementById('kotak-error').classList.add('hidden');
-            const isSaved = localStorage.getItem('saas_kotak') === 'Active';
-            if (isSaved) {
-                document.getElementById('kotak-full-form').classList.add('hidden');
-                document.getElementById('kotak-totp-form').classList.remove('hidden');
-                document.getElementById('kotak-quick-totp').value = ''; 
-            } else {
-                document.getElementById('kotak-full-form').classList.remove('hidden');
-                document.getElementById('kotak-totp-form').classList.add('hidden');
-                document.getElementById('kotak-full-totp').value = '';
-            }
-        }
-
-        function closeKotakModal() { document.getElementById('kotak-modal').classList.add('hidden'); }
-
-        function resetKotakProfile() {
-            if(confirm("This will clear your saved broker details. Are you sure?")) {
-                localStorage.setItem('saas_kotak', 'Inactive');
-                updateKotakUI('Inactive');
-                openKotakModal(); 
-            }
-        }
-
-        async function handleKotakConnect(e) {
-            e.preventDefault();
-            const btn = document.getElementById('kotak-submit-btn');
-            const errorMsg = document.getElementById('kotak-error');
-            const token = localStorage.getItem('saas_token');
-
-            const payload = {
-                name: document.getElementById('kotak-name').value, mobile: document.getElementById('kotak-mobile').value,
-                ucc: document.getElementById('kotak-ucc').value, mpin: document.getElementById('kotak-mpin').value,
-                totp: document.getElementById('kotak-full-totp').value, consumer_key: document.getElementById('kotak-consumer-key').value
-            };
-
-            btn.innerHTML = '<span class="loader"></span> Saving...';
-            btn.disabled = true;
-            errorMsg.classList.add('hidden');
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/broker/kotak-login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                if(response.ok) {
-                    alert("Profile Saved & Connected!");
-                    localStorage.setItem('saas_kotak', 'Active');
-                    updateKotakUI('Active');
-                    closeKotakModal();
-                } else {
-                    errorMsg.innerText = getErrorMessage(data.detail);
-                    errorMsg.classList.remove('hidden');
-                }
-            } catch (err) {
-                errorMsg.innerText = "Network error.";
-                errorMsg.classList.remove('hidden');
-            } finally {
-                btn.innerHTML = '<span>Connect & Save</span>';
-                btn.disabled = false;
-            }
-        }
-
-        async function handleKotakTotpOnly(e) {
-            e.preventDefault();
-            const btn = document.getElementById('kotak-totp-btn');
-            const errorMsg = document.getElementById('kotak-error');
-            const token = localStorage.getItem('saas_token');
-            const totpVal = document.getElementById('kotak-quick-totp').value;
-
-            btn.innerHTML = '<span class="loader"></span> Starting...';
-            btn.disabled = true;
-            errorMsg.classList.add('hidden');
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/broker/kotak-totp-login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ totp: totpVal })
-                });
-                const data = await response.json();
-                if(response.ok) {
-                    alert("Live Trading Session Started! 🟢");
-                    closeKotakModal();
-                } else {
-                    errorMsg.innerText = getErrorMessage(data.detail);
-                    errorMsg.classList.remove('hidden');
-                }
-            } catch (err) {
-                errorMsg.innerText = "Network error.";
-                errorMsg.classList.remove('hidden');
-            } finally {
-                btn.innerHTML = '<span>Start Live Session</span>';
-                btn.disabled = false;
-            }
-        }
-
-        // --- 🟢 LIVE P&L WEBSOCKET ENGINE ---
-        function connectWebSocket() {
+        // --- ALGO BOT & SETTINGS LOGIC ---
+        async function fetchAlgoStatus() {
             const token = localStorage.getItem('saas_token');
             if(!token) return;
-
-            wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}`);
-            
-            wsConnection.onopen = () => {
-                const indicator = document.getElementById('ws-indicator');
-                indicator.classList.remove('bg-danger', 'shadow-[0_0_8px_#f43f5e]');
-                indicator.classList.add('bg-success', 'shadow-[0_0_8px_#10b981]');
-                indicator.querySelector('span').classList.remove('bg-danger');
-                indicator.querySelector('span').classList.add('bg-success');
-            };
-
-            wsConnection.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if(data.pnl !== undefined) {
-                    const pnlEl = document.getElementById('live-pnl');
-                    pnlEl.innerText = `${data.pnl >= 0 ? '+' : ''} ₹${data.pnl.toFixed(2)}`;
-                    
-                    if(data.pnl >= 0) {
-                        pnlEl.className = 'text-5xl font-extrabold tracking-tight transition-colors duration-300 text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]';
-                    } else {
-                        pnlEl.className = 'text-5xl font-extrabold tracking-tight transition-colors duration-300 text-rose-500 drop-shadow-[0_0_15px_rgba(244,63,94,0.3)]';
-                    }
-                }
-            };
-
-            wsConnection.onclose = () => {
-                const indicator = document.getElementById('ws-indicator');
-                indicator.classList.remove('bg-success', 'shadow-[0_0_8px_#10b981]');
-                indicator.classList.add('bg-danger', 'shadow-[0_0_8px_#f43f5e]');
-                indicator.querySelector('span').classList.remove('bg-success');
-                indicator.querySelector('span').classList.add('bg-danger');
+            const res = await fetch(`${API_BASE_URL}/algo/status`, { headers: { 'Authorization': `Bearer ${token}` }});
+            const data = await res.json();
+            if(res.ok) {
+                document.getElementById('algo-toggle').checked = data.is_active;
+                document.getElementById('algo-plan').innerText = `Plan: ${data.plan_today}`;
                 
-                setTimeout(connectWebSocket, 5000); 
-            };
+                const statusText = document.getElementById('algo-status-text');
+                if(data.is_active) {
+                    statusText.innerHTML = data.executed_today ? "🟢 Trades Running" : "🟡 Active (Waiting for Time)";
+                    document.getElementById('test-algo-btn').classList.remove('hidden');
+                } else {
+                    statusText.innerHTML = "⚪ Offline";
+                    document.getElementById('test-algo-btn').classList.add('hidden');
+                }
+
+                // Populate Settings Form
+                const cfg = data.config;
+                document.getElementById('cfg-default').checked = cfg.use_default;
+                document.getElementById('cfg-index').value = cfg.index;
+                document.getElementById('cfg-premium').value = cfg.max_premium;
+                document.getElementById('cfg-sl').value = cfg.sl_pct;
+                document.getElementById('cfg-time').value = cfg.entry_time;
+                toggleCustomSettings();
+            }
         }
 
-        // --- 🔴 PANIC EXIT ENGINE ---
-        async function triggerExitAll() {
-            if(confirm("🚨 WARNING: This will immediately square off ALL positions via Limit orders. Proceed?")) {
-                const token = localStorage.getItem('saas_token');
-                const btn = document.getElementById('panic-btn');
-                const originalText = btn.innerHTML;
-                
-                btn.innerHTML = '<span class="loader border-white border-t-rose-400 mr-2"></span> Exiting...';
-                btn.disabled = true;
+        async function toggleAlgo() {
+            const token = localStorage.getItem('saas_token');
+            const res = await fetch(`${API_BASE_URL}/algo/toggle`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+            if(res.ok) fetchAlgoStatus();
+        }
 
-                try {
-                    const response = await fetch(`${API_BASE_URL}/trades/exit-all`, {
-                        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    const data = await response.json();
-                    
-                    if(response.ok) {
-                        alert(data.message || "Positions squared off successfully.");
-                    } else {
-                        alert("Error: " + (data.detail || "Failed to exit positions."));
-                    }
-                } catch(err) {
-                    alert("Network Error: Failed to send Panic Exit command to server.");
-                } finally {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }
+        function openAlgoSettings() { document.getElementById('algo-settings-modal').classList.remove('hidden'); }
+        function closeAlgoSettings() { document.getElementById('algo-settings-modal').classList.add('hidden'); }
+
+        function toggleCustomSettings() {
+            const isDefault = document.getElementById('cfg-default').checked;
+            const customDiv = document.getElementById('custom-settings-div');
+            if(isDefault) {
+                customDiv.style.opacity = '0.4';
+                customDiv.style.pointerEvents = 'none';
+            } else {
+                customDiv.style.opacity = '1';
+                customDiv.style.pointerEvents = 'auto';
             }
+        }
+
+        async function saveAlgoConfig() {
+            const token = localStorage.getItem('saas_token');
+            const payload = {
+                use_default: document.getElementById('cfg-default').checked,
+                index: document.getElementById('cfg-index').value,
+                max_premium: parseFloat(document.getElementById('cfg-premium').value || 6),
+                sl_pct: parseFloat(document.getElementById('cfg-sl').value || 200),
+                entry_time: document.getElementById('cfg-time').value || "10:00"
+            };
+
+            const res = await fetch(`${API_BASE_URL}/algo/config`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if(res.ok) {
+                alert("✅ " + data.message);
+                closeAlgoSettings();
+                fetchAlgoStatus();
+            } else alert("❌ Error saving settings");
+        }
+
+        async function testAlgoExecution() {
+            const btn = document.getElementById('test-algo-btn');
+            btn.innerText = "⏳ Executing...";
+            const res = await fetch(`${API_BASE_URL}/algo/execute-now?mode=${localStorage.getItem('trade_mode') || 'PAPER'}`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
+            const data = await res.json();
+            alert(res.ok ? "✅ " + data.message : "❌ " + (data.message || data.detail));
+            fetchAlgoStatus();
+            btn.innerText = "⚙️ Force Execute Now (Manual Test)";
+        }
+
+        // --- SYNC LOGIC ---
+        async function updateWeeklyExpiry() {
+            if(!confirm("Sync latest Weekly Expiry data from Exchange?")) return;
+            const btn = document.getElementById('sync-btn');
+            btn.innerHTML = "⏳ Syncing...";
+            const res = await fetch(`${API_BASE_URL}/market/sync-master`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
+            const data = await res.json();
+            alert(res.ok ? "✅ " + data.message : "❌ Error syncing");
+            btn.innerHTML = "🔄 Update Weekly Expiry";
         }
     </script>
 </body>

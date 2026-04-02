@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from typing import List
 from app.api.deps import get_current_user
 from app.core.database import get_collection
 from app.api.v1.market import get_kotak_client
@@ -8,33 +9,43 @@ from datetime import datetime, timezone, timedelta
 router = APIRouter()
 IST = timezone(timedelta(hours=5, minutes=30))
 
+# 🟢 UPDATE: Naya config model jisme active_days list of integers hai (0=Mon... 6=Sun)
 class AlgoConfig(BaseModel):
     use_default: bool
     index: str
     entry_time: str
     max_premium: float
     sl_pct: float
+    active_days: List[int]
 
 @router.get("/status")
 async def get_algo_status(current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_state")
     state = await algo_col.find_one({"user_id": current_user["id"]})
     
+    default_config = {
+        "use_default": True, 
+        "index": "NIFTY", 
+        "entry_time": "10:00", 
+        "max_premium": 6.0, 
+        "sl_pct": 200.0,
+        "active_days": []
+    }
+
     if not state:
-        default_config = {"use_default": True, "index": "NIFTY", "entry_time": "10:00", "max_premium": 6.0, "sl_pct": 200.0}
         state = {"user_id": current_user["id"], "is_active": False, "last_executed_date": "", "config": default_config}
         await algo_col.insert_one(state)
         
-    config = state.get("config", {"use_default": True, "index": "NIFTY", "entry_time": "10:00", "max_premium": 6.0, "sl_pct": 200.0})
+    config = state.get("config", default_config)
     
     # Determine Plan Display Name
-    if config["use_default"]:
+    if config.get("use_default", True):
         day = datetime.now(IST).weekday()
         if day in [0, 4]: plan = "Default: NIFTY Sell @ ₹6"
         elif day == 1: plan = "Default: SENSEX Sell @ ₹12"
         else: plan = "Default: Idle Today"
     else:
-        plan = f"Custom: {config['index']} Sell @ ₹{config['max_premium']}"
+        plan = f"Custom: {config.get('index', 'NIFTY')} Sell <= ₹{config.get('max_premium', 6)}"
 
     return {
         "status": "success", 
@@ -66,14 +77,20 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
     state = await algo_col.find_one({"user_id": current_user["id"]})
     config = state.get("config", {"use_default": True}) if state else {"use_default": True}
 
-    # 1. APPLY LOGIC (Default vs Custom)
+    day = now.weekday()
+
+    # 🟢 1. APPLY LOGIC (Default vs Custom Day Check)
     if config.get("use_default", True):
-        day = now.weekday()
-        if day not in [0, 1, 4]: return {"status": "error", "message": "No default strategy planned for today."}
+        if day not in [0, 1, 4]: 
+            return {"status": "error", "message": "No default strategy planned for today."}
         index = "SENSEX" if day == 1 else "NIFTY"
         target_premium = 12.0 if day == 1 else 6.0
         sl_pct = 200.0
     else:
+        active_days = config.get("active_days", [])
+        if day not in active_days:
+            return {"status": "error", "message": "Custom strategy is not configured to run today."}
+            
         index = config.get("index", "NIFTY")
         target_premium = float(config.get("max_premium", 6.0))
         sl_pct = float(config.get("sl_pct", 200.0))
@@ -119,7 +136,7 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
     ce_sl = round(best_ce["ltp"] * (1 + sl_pct/100), 1)
     pe_sl = round(best_pe["ltp"] * (1 + sl_pct/100), 1)
 
-    # 5. FIRE PAPER ORDERS
+    # 5. FIRE PAPER/REAL ORDERS
     paper_col = get_collection("paper_trades" if mode == "PAPER" else "real_trades")
     trade_docs = [
         {"user_id": current_user["id"], "status": "OPEN", "entry_time": now.strftime("%Y-%m-%d %H:%M:%S"), "is_algo": True,

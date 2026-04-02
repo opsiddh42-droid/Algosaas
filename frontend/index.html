@@ -50,7 +50,7 @@
             <div class="text-center mb-8">
                 <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-4 shadow-lg"><span class="text-2xl">⚡</span></div>
                 <h1 class="text-3xl font-extrabold text-white">AlgoSaaS</h1>
-                <p id="auth-subtitle" class="text-slate-400 mt-1 text-sm">Welcome to Premium Terminal</p>
+                <p id="auth-subtitle" class="text-slate-400 mt-1 text-sm">Login to your terminal</p>
             </div>
             
             <!-- LOGIN FORM -->
@@ -70,16 +70,16 @@
             <!-- SIGNUP FORM -->
             <form id="signup-form" onsubmit="handleSignup(event)" class="hidden">
                 <div class="mb-4">
-                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Name</label>
-                    <input type="text" id="signup-name" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-success">
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Full Name</label>
+                    <input type="text" id="signup-name" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-success" placeholder="John Doe">
                 </div>
                 <div class="mb-4">
-                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Email</label>
-                    <input type="email" id="signup-email" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-success">
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Email Address</label>
+                    <input type="email" id="signup-email" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-success" placeholder="trader@algosaas.com">
                 </div>
                 <div class="mb-6">
                     <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Password</label>
-                    <input type="password" id="signup-password" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-success">
+                    <input type="password" id="signup-password" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-success" placeholder="••••••••">
                 </div>
                 <button type="submit" id="signup-btn" class="w-full bg-success text-white font-bold py-3.5 rounded-xl shadow-lg flex justify-center items-center">Create Account</button>
                 <button type="button" onclick="toggleAuthMode('login')" class="w-full mt-4 text-xs text-slate-400">Back to <span class="text-primary font-bold">Login</span></button>
@@ -87,7 +87,7 @@
         </div>
     </div>
 
-    <!-- DASHBOARD SECTION (Simplified for update) -->
+    <!-- DASHBOARD SECTION -->
     <div id="dashboard-section" class="hidden flex-1 flex flex-col p-4">
         <div class="glass-card p-6 rounded-3xl text-center">
             <h2 class="text-2xl font-bold mb-2" id="welcome-msg">Welcome!</h2>
@@ -108,6 +108,7 @@
         async function handleSignup(e) {
             e.preventDefault();
             const btn = document.getElementById('signup-btn');
+            const originalHTML = btn.innerHTML;
             btn.innerHTML = '<span class="loader"></span>';
             
             const payload = {
@@ -116,36 +117,35 @@
                 password: document.getElementById('signup-password').value
             };
 
-            // TRY DIFFERENT ENDPOINTS (Standard backends often use these)
-            const paths = ['/auth/register', '/register', '/users/register'];
-            let success = false;
-
-            for (let path of paths) {
-                try {
-                    const res = await fetch(`${API_BASE_URL}${path}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (res.ok) {
-                        alert("✅ Success! Account created.");
-                        toggleAuthMode('login');
-                        success = true;
-                        break;
-                    }
-                } catch (err) { console.log("Failed path: " + path); }
+            try {
+                // FIXED ENDPOINT: screenshot ke hisaab se /auth/signup hai
+                const res = await fetch(`${API_BASE_URL}/auth/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    alert("✅ Account Created Successfully! Now Login.");
+                    toggleAuthMode('login');
+                } else {
+                    const errorData = await res.json();
+                    alert("❌ Signup Failed: " + (errorData.detail || "Error"));
+                }
+            } catch (err) { 
+                alert("Network Error. Backend port 8000 band ho sakta hai."); 
             }
-
-            if (!success) alert("❌ Signup Failed. Check if Backend is running at port 8000.");
-            btn.innerHTML = 'Create Account';
+            btn.innerHTML = originalHTML;
         }
 
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('login-btn');
+            const originalHTML = btn.innerHTML;
             btn.innerHTML = '<span class="loader"></span>';
             
             try {
+                // FIXED ENDPOINT: screenshot ke hisaab se /auth/login hai
                 const res = await fetch(`${API_BASE_URL}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -163,8 +163,10 @@
                 } else {
                     alert("❌ Login Failed: " + (data.detail || "Invalid Credentials"));
                 }
-            } catch (err) { alert("Network Error. Check Backend."); }
-            btn.innerHTML = 'Secure Login';
+            } catch (err) { 
+                alert("Network Error. Backend check kijiye."); 
+            }
+            btn.innerHTML = originalHTML;
         }
 
         function logout() { localStorage.clear(); location.reload(); }

@@ -17,6 +17,10 @@ class AlgoConfig(BaseModel):
     sl_pct: float
     active_days: List[int]
 
+# 🟢 Helper: Kotak Neo requires valid price ticks (multiples of 0.05)
+def round_to_tick(price: float) -> float:
+    return round(price * 20) / 20.0
+
 @router.get("/status")
 async def get_algo_status(current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_state")
@@ -77,7 +81,7 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
 
     day = now.weekday()
 
-    # 1. APPLY LOGIC
+    # 1. APPLY LOGIC (Days Check)
     if config.get("use_default", True):
         if day not in [0, 1, 4]: 
             return {"status": "error", "message": "No default strategy planned for today."}
@@ -131,52 +135,45 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
     if not best_ce or not best_pe:
         return {"status": "error", "message": f"Could not find {index} CE/PE below ₹{target_premium}"}
 
-    # 🟢 4. CALCULATE TRIGGERS & LIMITS (10 Point Buffer)
-    ce_sl_trigger = round(best_ce["ltp"] * (1 + sl_pct/100), 1)
-    ce_sl_limit = round(ce_sl_trigger + 10.0, 1)
+    # 🟢 4. CALCULATE TRIGGERS & LIMITS (10 Point Buffer with Tick Formatting)
+    ce_ltp = round_to_tick(best_ce["ltp"])
+    pe_ltp = round_to_tick(best_pe["ltp"])
 
-    pe_sl_trigger = round(best_pe["ltp"] * (1 + sl_pct/100), 1)
-    pe_sl_limit = round(pe_sl_trigger + 10.0, 1)
+    ce_sl_trigger = round_to_tick(ce_ltp * (1 + sl_pct/100))
+    ce_sl_limit = round_to_tick(ce_sl_trigger + 10.0)
 
-    # 🟢 5. FIRE ACTUAL ORDERS TO KOTAK NEO
+    pe_sl_trigger = round_to_tick(pe_ltp * (1 + sl_pct/100))
+    pe_sl_limit = round_to_tick(pe_sl_trigger + 10.0)
+
+    # 🟢 5. FIRE STRICT ORDERS TO KOTAK NEO
     if mode == "REAL":
         try:
-            # -- ENTRY ORDERS (Limit Sell at LTP) --
-            client.place_order(
-                exchange_segment=exch_seg, product="NRML", price=str(best_ce["ltp"]), order_type="L", 
-                quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], 
-                transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag="algo_entry"
-            )
-            client.place_order(
-                exchange_segment=exch_seg, product="NRML", price=str(best_pe["ltp"]), order_type="L", 
-                quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], 
-                transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag="algo_entry"
-            )
+            # Custom function to fire and explicitly check errors
+            def fire_order(tag_name, **kwargs):
+                resp = client.place_order(**kwargs)
+                if isinstance(resp, dict) and resp.get("stat") != "Ok":
+                    err_msg = resp.get("emsg", resp.get("message", "Unknown Kotak Error"))
+                    raise Exception(f"{tag_name} Failed: {err_msg}")
+                return resp
+
+            # -- ENTRY ORDERS (Limit Sell at current LTP) --
+            fire_order("CE Entry", exchange_segment=exch_seg, product="NRML", price=str(ce_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag="algo_entry")
+            fire_order("PE Entry", exchange_segment=exch_seg, product="NRML", price=str(pe_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag="algo_entry")
 
             # -- STOPLOSS ORDERS (Buy Limit with 10 pt buffer) --
-            client.place_order(
-                exchange_segment=exch_seg, product="NRML", price=str(ce_sl_limit), order_type="SL", 
-                quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], 
-                transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(ce_sl_trigger), tag="algo_sl"
-            )
-            client.place_order(
-                exchange_segment=exch_seg, product="NRML", price=str(pe_sl_limit), order_type="SL", 
-                quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], 
-                transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(pe_sl_trigger), tag="algo_sl"
-            )
+            fire_order("CE SL", exchange_segment=exch_seg, product="NRML", price=str(ce_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(ce_sl_trigger), tag="algo_sl")
+            fire_order("PE SL", exchange_segment=exch_seg, product="NRML", price=str(pe_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(pe_sl_trigger), tag="algo_sl")
 
         except Exception as e:
-            return {"status": "error", "message": f"Kotak API Failed to place order: {str(e)}"}
+            return {"status": "error", "message": f"Kotak Rejected ❌: {str(e)}"}
 
     # 6. SAVE TO DB FOR UI TRACKING
     db_col = get_collection("real_trades" if mode == "REAL" else "paper_trades")
     trade_docs = [
-        {"user_id": current_user["id"], "status": "OPEN", "entry_time": now.strftime("%Y-%m-%d %H:%M:%S"), "is_algo": True,
-         "legs": [{"symbol": best_ce["sym"], "token": best_ce["tk"], "transaction": "S", "qty": int(qty), "entry_price": best_ce["ltp"], "ltp": best_ce["ltp"], "sl": ce_sl_trigger, "target": 0, "status": "OPEN"}]},
-        {"user_id": current_user["id"], "status": "OPEN", "entry_time": now.strftime("%Y-%m-%d %H:%M:%S"), "is_algo": True,
-         "legs": [{"symbol": best_pe["sym"], "token": best_pe["tk"], "transaction": "S", "qty": int(qty), "entry_price": best_pe["ltp"], "ltp": best_pe["ltp"], "sl": pe_sl_trigger, "target": 0, "status": "OPEN"}]}
+        {"user_id": current_user["id"], "status": "OPEN", "entry_time": now.strftime("%Y-%m-%d %H:%M:%S"), "is_algo": True, "legs": [{"symbol": best_ce["sym"], "token": best_ce["tk"], "transaction": "S", "qty": int(qty), "entry_price": ce_ltp, "ltp": ce_ltp, "sl": ce_sl_trigger, "target": 0, "status": "OPEN"}]},
+        {"user_id": current_user["id"], "status": "OPEN", "entry_time": now.strftime("%Y-%m-%d %H:%M:%S"), "is_algo": True, "legs": [{"symbol": best_pe["sym"], "token": best_pe["tk"], "transaction": "S", "qty": int(qty), "entry_price": pe_ltp, "ltp": pe_ltp, "sl": pe_sl_trigger, "target": 0, "status": "OPEN"}]}
     ]
     await db_col.insert_many(trade_docs)
     await algo_col.update_one({"user_id": current_user["id"]}, {"$set": {"last_executed_date": now.strftime("%Y-%m-%d")}})
 
-    return {"status": "success", "message": f"Live Limit & SL Orders Placed for {best_ce['sym']} & {best_pe['sym']}!"}
+    return {"status": "success", "message": f"Limit Orders Placed: {best_ce['sym']} & {best_pe['sym']} with strict SL."}

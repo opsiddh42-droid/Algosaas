@@ -146,36 +146,37 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
     pe_sl_trigger = round_to_tick(pe_ltp * (1 + sl_pct/100))
     pe_sl_limit = round_to_tick(pe_sl_trigger + 10.0)
 
-    # 🟢 5. FIRE STRICT ORDERS TO KOTAK NEO (WITH RAW ERROR DUMP)
+    # 🟢     # 🟢 5. FIRE STRICT ORDERS TO KOTAK NEO (WITH RAW ERROR DUMP)
     if mode == "REAL":
         try:
+            import time
+            # Har order ke liye ek unique ID banayenge (timestamp ke aakhri 6 digit)
+            uniq = str(int(time.time()))[-6:]
+
             def fire_order(tag_name, **kwargs):
                 try:
                     resp = client.place_order(**kwargs)
                 except Exception as api_err:
-                    # Agar Kotak SDK code me hi crash ho gaya
                     raise Exception(f"SDK Exception -> {str(api_err)}")
                 
-                # 🔥 EXACT RAW ERROR DUMP LOGIC 🔥
                 if isinstance(resp, dict) and resp.get("stat") != "Ok":
-                    # Pura dictionary string me convert karke user ko dikhao
                     raw_error = str(resp)
                     raise Exception(f"API Reject -> {raw_error}")
                 
                 return resp
 
             # -- ENTRY ORDERS (Limit Sell at current LTP) --
-            fire_order("CE Entry", exchange_segment=exch_seg, product="NRML", price=str(ce_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag="algo_entry")
-            fire_order("PE Entry", exchange_segment=exch_seg, product="NRML", price=str(pe_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag="algo_entry")
+            fire_order("CE Entry", exchange_segment=exch_seg, product="NRML", price=str(ce_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag=f"ce_ent_{uniq}")
+            
+            fire_order("PE Entry", exchange_segment=exch_seg, product="NRML", price=str(pe_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price="0", tag=f"pe_ent_{uniq}")
 
             # -- STOPLOSS ORDERS (Buy Limit with 10 pt buffer) --
-            fire_order("CE SL", exchange_segment=exch_seg, product="NRML", price=str(ce_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(ce_sl_trigger), tag="algo_sl")
-            fire_order("PE SL", exchange_segment=exch_seg, product="NRML", price=str(pe_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(pe_sl_trigger), tag="algo_sl")
+            fire_order("CE SL", exchange_segment=exch_seg, product="NRML", price=str(ce_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(ce_sl_trigger), tag=f"ce_sl_{uniq}")
+            
+            fire_order("PE SL", exchange_segment=exch_seg, product="NRML", price=str(pe_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", market_protection="0", pf="N", trigger_price=str(pe_sl_trigger), tag=f"pe_sl_{uniq}")
 
         except Exception as e:
-            # Ye seedha aapki screen par raw format me popup hoga
             return {"status": "error", "message": f"Kotak Error: {str(e)}"}
-
     # 6. SAVE TO DB FOR UI TRACKING
     db_col = get_collection("real_trades" if mode == "REAL" else "paper_trades")
     trade_docs = [

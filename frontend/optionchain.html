@@ -122,8 +122,10 @@
     </div>
 
     <script>
-        const API_BASE_URL = "https://algosaas.onrender.com/api/v1";
-        const WS_BASE_URL = "wss://algosaas.onrender.com/ws/live-data";
+        // 🟢 YAHAN NGROK LINK UPDATE KIYA HAI 🟢
+        const API_BASE_URL = "https://82e3-3-237-9-9.ngrok-free.app/api/v1"; 
+        const WS_BASE_URL = "wss://82e3-3-237-9-9.ngrok-free.app/ws/live-data";
+
         let wsConnection = null;
         let currentAtm = 0;
         let selectedOrder = {};
@@ -160,7 +162,6 @@
             document.getElementById('modal-qty').value = defaultQty;
         }
 
-        // 🟢 EXACT ERROR HANDLING IMPLEMENTED HERE
         async function fetchOptionChain(symName = null) {
             const container = document.getElementById('chain-container');
             const symbol = symName || document.getElementById('chart-index').value;
@@ -179,12 +180,10 @@
                     currentAtm = Math.round(response.spot_price / 50) * 50;
                     renderChain(response.data, symbol, response.expiry);
                 } else {
-                    // 🟢 EXACT BACKEND ERROR YAHAN DIKHEGA
                     const errorMsg = response.detail || response.message || JSON.stringify(response);
                     container.innerHTML = `<div class="text-center text-xs text-danger py-4 font-black">❌ ERROR: <br><span class="text-slate-300 font-normal mt-2 block">${errorMsg}</span></div>`;
                 }
             } catch(e) {
-                // 🟢 NETWORK/JS CRASH ERROR YAHAN DIKHEGA
                 container.innerHTML = `<div class="text-center text-xs text-danger py-4 font-black">❌ NETWORK ERROR: <br><span class="text-slate-300 font-normal mt-2 block">${e.message}</span></div>`;
             }
         }

@@ -385,9 +385,9 @@
 
     <!-- JS LOGIC -->
     <script>
-        const API_BASE_URL = "http://3.237.9.9:8000/api/v1"; 
-        const WS_BASE_URL = "ws://3.237.9.9:8000/ws/live-data";
-
+        // Dhyan rakhein, yahan http ki jagah https aur ws ki jagah wss aayega
+const API_BASE_URL = "https://d404-3-237-9-9.ngrok-free.app/api/v1"; 
+const WS_BASE_URL = "wss://d404-3-237-9-9.ngrok-free.app/ws/live-data";
         let wsConnection = null;
         let currentAtm = 0;
         let selectedOrder = {};

@@ -389,9 +389,9 @@
 
     <!-- JS LOGIC -->
     <script>
-        // ✅ Aapka Naya updated link (82e3 wala)
-        const API_BASE_URL = "https://82e3-3-237-9-9.ngrok-free.app/api/v1"; 
-        const WS_BASE_URL = "wss://82e3-3-237-9-9.ngrok-free.app/ws/live-data";
+        // 🟢 YAHAN PERMANENT HTTPS LINK UPDATE KIYA HAI 🟢
+        const API_BASE_URL = "https://3.237.9.9.nip.io/api/v1"; 
+        const WS_BASE_URL = "wss://3.237.9.9.nip.io/ws/live-data";
      
         let wsConnection = null;
         let currentAtm = 0;
@@ -428,7 +428,6 @@
             btn.innerHTML = '<span class="loader"></span>';
             btn.disabled = true;
 
-            // 🟢 YAHAN BHI CHANGE KIYA HAI (full_name and mobile) 🟢
             const payload = {
                 full_name: document.getElementById('signup-name').value,
                 email: document.getElementById('signup-email').value,

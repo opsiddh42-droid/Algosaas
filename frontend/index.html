@@ -92,6 +92,11 @@
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Full Name</label>
                     <input type="text" id="signup-name" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-emerald-500 transition-all" placeholder="John Doe">
                 </div>
+                <!-- 🟢 MOBILE NUMBER ADD KIYA HAI YAHAN 🟢 -->
+                <div class="mb-5">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Mobile Number</label>
+                    <input type="tel" id="signup-mobile" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-emerald-500 transition-all" placeholder="9876543210">
+                </div>
                 <div class="mb-5">
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Email Address</label>
                     <input type="email" id="signup-email" required class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-emerald-500 transition-all" placeholder="trader@algosaas.com">
@@ -423,14 +428,15 @@
             btn.innerHTML = '<span class="loader"></span>';
             btn.disabled = true;
 
+            // 🟢 YAHAN BHI CHANGE KIYA HAI (full_name and mobile) 🟢
             const payload = {
-                name: document.getElementById('signup-name').value,
+                full_name: document.getElementById('signup-name').value,
                 email: document.getElementById('signup-email').value,
-                password: document.getElementById('signup-password').value
+                password: document.getElementById('signup-password').value,
+                mobile: document.getElementById('signup-mobile').value
             };
 
             try {
-                // ✅ YAHAN CHANGE KIYA HAI (/auth/signup)
                 const res = await fetch(`${API_BASE_URL}/auth/signup`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 

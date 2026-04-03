@@ -97,7 +97,8 @@ async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(
         target_premium = float(config.get("max_premium", 6.0))
         sl_pct = float(config.get("sl_pct", 200.0))
 
-    qty = "10" if index == "SENSEX" else "15" if index == "BANKNIFTY" else "50"
+    # Yahan lot sizes update kiye gaye hain
+    qty = "20" if index == "SENSEX" else "20" if index == "BANKNIFTY" else "65"
     coll_name = f"{index.lower()}_strike_data"
     exch_seg = "bse_fo" if index == "SENSEX" else "nse_fo"
 

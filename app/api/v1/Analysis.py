@@ -133,18 +133,36 @@ async def get_market_intelligence(symbol: str = "NIFTY", strikes_count: int = 10
 
         # 4. Fetch Live OI
         ce_tot_oi = pe_tot_oi = ce_tot_chg = pe_tot_chg = 0
+        debug_printed = False # Taki console bhar na jaye, sirf 1-2 raw quote print karenge
         
         for i in range(0, len(req_tokens), 50):
             batch = req_tokens[i:i+50]
             try:
                 q = client.quotes(instrument_tokens=batch, quote_type="all")
                 raw = q if isinstance(q, list) else q.get('data', [])
+                
                 for item in raw:
                     tk = str(item.get('exchange_token') or item.get('tk'))
-                    oi = float(item.get('oi', 0))
-                    prev_oi = float(item.get('yoi', item.get('previous_oi', oi))) # Fallback to current if no yoi
-                    oi_chg = oi - prev_oi 
                     
+                    oi_str = item.get('oi') or item.get('openInterest') or item.get('open_interest') or 0
+                    oi = float(oi_str)
+                    
+                    prev_oi_str = item.get('yoi') or item.get('previous_oi') or item.get('previousClose', 0)
+                    prev_oi = float(prev_oi_str)
+
+                    # 🟢 RAW DATA PRINTER 🟢
+                    if oi == 0 and not debug_printed:
+                        print("\n" + "="*60)
+                        print("🚨 OI ZERO MILA - RAW DATA BELOW 🚨")
+                        print(f"Raw Dict from Kotak: {item}")
+                        print("="*60 + "\n")
+                        debug_printed = True # Sirf ek baar print karega taki flood na ho
+                    
+                    if prev_oi > 0:
+                        oi_chg = oi - prev_oi 
+                    else:
+                        oi_chg = 0 
+
                     for stk in active_strikes:
                         if strike_map[stk].get("ce_token") == tk:
                             strike_map[stk].update({"ce_oi": oi, "ce_chg": oi_chg})
@@ -152,7 +170,8 @@ async def get_market_intelligence(symbol: str = "NIFTY", strikes_count: int = 10
                         elif strike_map[stk].get("pe_token") == tk:
                             strike_map[stk].update({"pe_oi": oi, "pe_chg": oi_chg})
                             pe_tot_oi += oi; pe_tot_chg += oi_chg
-            except: pass
+            except Exception as e:
+                print(f"Error fetching quotes: {e}")
 
         # 5. Calculations
         analytics_data = [strike_map[s] for s in active_strikes]

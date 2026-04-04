@@ -15,8 +15,8 @@ router = APIRouter()
 IST = timezone(timedelta(hours=5, minutes=30))
 
 # 🟢 TELEGRAM CONFIG 🟢
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8143978661:AAHio6d_ZxGtMh05PhguXyB27ffWKSa1LYA") 
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") 
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}" if BOT_TOKEN else None
 
 # Need this config here to know which DB collection to check
 INDICES_CONFIG = {
@@ -62,7 +62,7 @@ def calculate_max_pain(options_data):
     return max_pain_strike
 
 async def send_user_alert(user_id: str, message: str):
-    if not BOT_TOKEN: return
+    if not BOT_TOKEN or not TELEGRAM_API_URL: return
     try:
         user_col = get_collection("users")
         user = await user_col.find_one({"id": user_id})

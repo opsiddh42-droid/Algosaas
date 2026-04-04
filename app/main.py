@@ -8,8 +8,8 @@ from app.engine.scheduler import start_scheduler
 # ✅ Live P&L engine import
 from app.websockets.stream import stream_live_pnl
 
-# 📦 Saare Routers Import
-from app.api.v1 import auth, broker, trades, market, strategy, algo
+# 📦 Saare Routers Import (Analysis yahan add kiya hai)
+from app.api.v1 import auth, broker, trades, market, strategy, algo, Analysis
 
 # 🚀 FastAPI App Initialize
 app = FastAPI(
@@ -47,6 +47,8 @@ app.include_router(trades.router, prefix=f"{settings.API_V1_STR}/trades", tags=[
 app.include_router(market.router, prefix=f"{settings.API_V1_STR}/market", tags=["Market Data"])
 app.include_router(strategy.router, prefix=f"{settings.API_V1_STR}/strategy", tags=["Strategy Builder"])
 app.include_router(algo.router, prefix=f"{settings.API_V1_STR}/algo", tags=["Algo Bot"]) 
+# 👇 Naya Analysis Router Yahan Attach Kar Diya 👇
+app.include_router(Analysis.router, prefix=f"{settings.API_V1_STR}/analysis", tags=["Market Analysis"])
 
 # --- 🩺 HEALTH CHECK ROUTE ---
 @app.get("/")

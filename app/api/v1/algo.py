@@ -125,15 +125,10 @@ async def core_algo_execution(user_id: str, mode: str):
         index = config.get("index", "NIFTY")
         target_premium, sl_pct = float(config.get("max_premium", 6.0)), float(config.get("sl_pct", 200.0))
 
-    # Lot size fix applied here
-    if index == "NIFTY":
-        qty = "65"
-    elif index == "BANKNIFTY":
-        qty = "15"
-    elif index == "SENSEX":
-        qty = "20"
-    else:
-        qty = "65"
+    if index == "NIFTY": qty = "65"
+    elif index == "BANKNIFTY": qty = "15"
+    elif index == "SENSEX": qty = "20"
+    else: qty = "65"
         
     coll_name, exch_seg = f"{index.lower()}_strike_data", "bse_fo" if index == "SENSEX" else "nse_fo"
 
@@ -176,17 +171,25 @@ async def core_algo_execution(user_id: str, mode: str):
         try:
             uniq = str(int(time.time()))[-6:]
             
-            # Fix: tag argument name changed to order_name
             def fire_order(order_name, **kwargs):
                 resp = client.place_order(**kwargs)
                 if isinstance(resp, dict) and resp.get("stat") != "Ok": 
                     raise Exception(f"{order_name} Error: " + str(resp))
                 return resp
 
-            fire_order("CE Ent", exchange_segment=exch_seg, product="NRML", price=str(ce_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0", tag=f"ce_e_{uniq}")
-            fire_order("PE Ent", exchange_segment=exch_seg, product="NRML", price=str(pe_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0", tag=f"pe_e_{uniq}")
-            fire_order("CE SL", exchange_segment=exch_seg, product="NRML", price=str(ce_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=str(ce_sl_trigger), tag=f"ce_s_{uniq}")
-            fire_order("PE SL", exchange_segment=exch_seg, product="NRML", price=str(pe_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=str(pe_sl_trigger), tag=f"pe_s_{uniq}")
+            # 🚀 SPEED FIX: Concurrent Order Placement (Dono leg ek sath lagenge)
+            entry_tasks = [
+                asyncio.to_thread(fire_order, "CE Ent", exchange_segment=exch_seg, product="NRML", price=str(ce_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0", tag=f"ce_e_{uniq}"),
+                asyncio.to_thread(fire_order, "PE Ent", exchange_segment=exch_seg, product="NRML", price=str(pe_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0", tag=f"pe_e_{uniq}")
+            ]
+            await asyncio.gather(*entry_tasks)
+
+            sl_tasks = [
+                asyncio.to_thread(fire_order, "CE SL", exchange_segment=exch_seg, product="NRML", price=str(ce_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=str(ce_sl_trigger), tag=f"ce_s_{uniq}"),
+                asyncio.to_thread(fire_order, "PE SL", exchange_segment=exch_seg, product="NRML", price=str(pe_sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_pe["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=str(pe_sl_trigger), tag=f"pe_s_{uniq}")
+            ]
+            await asyncio.gather(*sl_tasks)
+
         except Exception as e: return {"status": "error", "message": f"Kotak Error: {str(e)}"}
             
     db_col = get_collection("real_trades")
@@ -223,30 +226,64 @@ async def automatic_algo_scheduler():
                 try: await core_algo_execution(user_state["user_id"], "REAL")
                 except: pass
 
-        # 🟢 2. CHECK FOR 3:15 PM AUTO EXIT
+        # 🟢 2. CHECK FOR 3:15 PM AUTO EXIT & SL CANCEL
         if current_time == "15:15":
             open_trades = await db_col.find({"status": "OPEN"}).to_list(length=None)
             for trade in open_trades:
+                
+                # 🚀 ATOMIC LOCK: Double Execution block karne ke liye (4 orders aana band ho jayega)
+                lock_result = await db_col.update_one(
+                    {"_id": trade["_id"], "status": "OPEN"}, 
+                    {"$set": {"status": "PROCESSING"}} 
+                )
+                if lock_result.modified_count == 0:
+                    continue # Dusra worker ispe already kaam kar raha hai
+                
                 user_id = trade["user_id"]
                 try:
                     client = get_kotak_client(user_id)
+                    
+                    # 🚀 STEP 1: Kotak se saare pending orders uthao
+                    try:
+                        order_report = client.order_report()
+                        orders = order_report if isinstance(order_report, list) else order_report.get("data", [])
+                    except Exception:
+                        orders = []
+
                     updated_legs = []
                     for leg in trade["legs"]:
                         if leg["status"] == "OPEN":
-                            # Ulta order (Buy if S, Sell if B)
+                            
+                            # 🚀 STEP 2: Agar is symbol ka koi Pending SL order hai, toh use Cancel karo
+                            for ord_data in orders:
+                                status = str(ord_data.get("ordSt", "")).lower()
+                                sym = ord_data.get("trdSym", "")
+                                ord_no = ord_data.get("nOrdNo", "")
+                                
+                                if sym == leg["symbol"] and status in ["opn", "trg", "pending", "trigger pending", "open", "put", "modified"]:
+                                    try:
+                                        client.cancel_order(nOrdNo=str(ord_no))
+                                    except Exception as ce:
+                                        print(f"Cancel SL Failed for {sym}: {ce}")
+
+                            # 🚀 STEP 3: Naya Market Order laga kar Position Square Off karo
                             exit_trans = "B" if leg["transaction"] == "S" else "S"
                             try:
                                 client.place_order(exchange_segment=leg.get("exch_seg", "nse_fo"), product="NRML", price="0", order_type="MKT", quantity=str(leg["qty"]), validity="DAY", trading_symbol=leg["symbol"], transaction_type=exit_trans, amo="NO")
                                 leg["status"] = "CLOSED"
                             except Exception as e:
                                 print(f"Auto Exit Failed {leg['symbol']}: {e}")
+                                
                         updated_legs.append(leg)
                     
+                    # DB status Update
                     await db_col.update_one({"_id": trade["_id"]}, {"$set": {"status": "CLOSED", "legs": updated_legs}})
-                    asyncio.create_task(send_user_alert(user_id, f"⏰ <b>AUTO EXIT @ 15:15</b>\n\nAll open Algo positions for {current_date} squared off automatically."))
-                except Exception as e: pass
+                    asyncio.create_task(send_user_alert(user_id, f"⏰ <b>AUTO EXIT @ 15:15</b>\n\n✅ Pending SL Canceled\n✅ Positions squared off automatically."))
+                except Exception as e: 
+                    print(f"Exit Loop Error: {e}")
 
-        sleep_sec = 60 - datetime.now(IST).second
+        # 🚀 TIMER DRIFT FIX: Agle minute tak hi wait karega, same minute me do baar run nahi hoga
+        sleep_sec = 61 - datetime.now(IST).second
         await asyncio.sleep(sleep_sec)
 
 @router.on_event("startup")

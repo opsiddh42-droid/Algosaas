@@ -76,19 +76,22 @@ async def get_algo_status(current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_state")
     state = await algo_col.find_one({"user_id": current_user["id"]})
     
-    default_config = {"use_default": True, "index": "NIFTY", "entry_time": "10:00", "max_premium": 6.0, "sl_pct": 200.0, "active_days": []}
+    # Updated default premium to 10
+    default_config = {"use_default": True, "index": "NIFTY", "entry_time": "10:00", "max_premium": 10.0, "sl_pct": 200.0, "active_days": []}
     if not state:
         state = {"user_id": current_user["id"], "is_active": False, "last_executed_date": "", "config": default_config}
         await algo_col.insert_one(state)
         
     config = state.get("config", default_config)
+    
+    # Updated logic for plan status display
     if config.get("use_default", True):
         day = datetime.now(IST).weekday()
-        if day in [0, 4]: plan = "Default: NIFTY Sell @ ₹6"
-        elif day == 1: plan = "Default: SENSEX Sell @ ₹12"
+        if day in [0, 1, 4]: plan = "Default: NIFTY Sell @ ₹10"
+        elif day in [2, 3]: plan = "Default: SENSEX Sell @ ₹15"
         else: plan = "Default: Idle Today"
     else:
-        plan = f"Custom: {config.get('index', 'NIFTY')} Sell <= ₹{config.get('max_premium', 6)}"
+        plan = f"Custom: {config.get('index', 'NIFTY')} Sell <= ₹{config.get('max_premium', 10)}"
 
     return {
         "status": "success", "is_active": state.get("is_active", False),
@@ -117,13 +120,18 @@ async def core_algo_execution(user_id: str, mode: str):
     config = state.get("config", {"use_default": True}) if state else {"use_default": True}
     day = now.weekday()
 
+    # 🚀 NEW STRATEGY LOGIC UPDATED HERE
     if config.get("use_default", True):
-        if day not in [0, 1, 4]: return {"status": "error", "message": "No default strategy planned for today."}
-        index, target_premium, sl_pct = ("SENSEX", 12.0, 200.0) if day == 1 else ("NIFTY", 6.0, 200.0)
+        if day in [0, 1, 4]: # Monday (0), Tuesday (1), Friday (4)
+            index, target_premium, sl_pct = "NIFTY", 10.0, 200.0
+        elif day in [2, 3]: # Wednesday (2), Thursday (3)
+            index, target_premium, sl_pct = "SENSEX", 15.0, 200.0
+        else: # Weekend
+            return {"status": "error", "message": "No default strategy planned for today."}
     else:
         if day not in config.get("active_days", []): return {"status": "error", "message": "Custom strategy is not configured to run today."}
         index = config.get("index", "NIFTY")
-        target_premium, sl_pct = float(config.get("max_premium", 6.0)), float(config.get("sl_pct", 200.0))
+        target_premium, sl_pct = float(config.get("max_premium", 10.0)), float(config.get("sl_pct", 200.0))
 
     if index == "NIFTY": qty = "65"
     elif index == "BANKNIFTY": qty = "15"

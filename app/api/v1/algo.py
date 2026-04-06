@@ -125,7 +125,16 @@ async def core_algo_execution(user_id: str, mode: str):
         index = config.get("index", "NIFTY")
         target_premium, sl_pct = float(config.get("max_premium", 6.0)), float(config.get("sl_pct", 200.0))
 
-    qty = "20" if index in ["SENSEX", "BANKNIFTY"] else "65"
+    # Lot size fix applied here
+    if index == "NIFTY":
+        qty = "65"
+    elif index == "BANKNIFTY":
+        qty = "15"
+    elif index == "SENSEX":
+        qty = "20"
+    else:
+        qty = "65"
+        
     coll_name, exch_seg = f"{index.lower()}_strike_data", "bse_fo" if index == "SENSEX" else "nse_fo"
 
     try: client = get_kotak_client(user_id)
@@ -166,9 +175,12 @@ async def core_algo_execution(user_id: str, mode: str):
     if mode == "REAL":
         try:
             uniq = str(int(time.time()))[-6:]
-            def fire_order(tag, **kwargs):
+            
+            # Fix: tag argument name changed to order_name
+            def fire_order(order_name, **kwargs):
                 resp = client.place_order(**kwargs)
-                if isinstance(resp, dict) and resp.get("stat") != "Ok": raise Exception(str(resp))
+                if isinstance(resp, dict) and resp.get("stat") != "Ok": 
+                    raise Exception(f"{order_name} Error: " + str(resp))
                 return resp
 
             fire_order("CE Ent", exchange_segment=exch_seg, product="NRML", price=str(ce_ltp), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_ce["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0", tag=f"ce_e_{uniq}")

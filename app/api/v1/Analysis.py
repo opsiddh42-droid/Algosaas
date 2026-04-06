@@ -60,16 +60,24 @@ def calculate_max_pain(options_data):
     return max_pain_strike
 
 async def send_user_alert(user_id: str, message: str):
-    if not BOT_TOKEN or not TELEGRAM_API_URL: return
+    if not BOT_TOKEN or not TELEGRAM_API_URL: 
+        print(f"⚠️ Bot token missing. Cannot send telegram message to {user_id}")
+        return
     try:
         user_col = get_collection("users")
         user = await user_col.find_one({"id": user_id})
         if user and user.get("telegram_chat_id"):
             chat_id = user["telegram_chat_id"]
             async with httpx.AsyncClient() as client:
-                await client.post(f"{TELEGRAM_API_URL}/sendMessage", json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"}, timeout=5)
+                resp = await client.post(f"{TELEGRAM_API_URL}/sendMessage", json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"}, timeout=10)
+                if resp.status_code != 200:
+                    print(f"⚠️ Telegram API Error: {resp.text}")
+                else:
+                    print(f"✅ Telegram message successfully sent to {user_id}")
+        else:
+            print(f"❌ Cannot send message: telegram_chat_id not found in database for user {user_id}")
     except Exception as e:
-        pass
+        print(f"⚠️ Error in send_user_alert: {e}")
 
 class AlertConfig(BaseModel):
     is_active: bool
@@ -96,7 +104,7 @@ async def get_market_intelligence(symbol: str = "NIFTY", strikes_count: int = 10
 
         coll = get_collection(conf["Coll"])
         cursor = await coll.find().to_list(length=None)
-        if not cursor: raise Exception("Weekly data missing.")
+        if not cursor: raise Exception("Weekly data missing. Please Update Expiry.")
 
         strike_map = {}
         for doc in cursor:
@@ -133,7 +141,6 @@ async def get_market_intelligence(symbol: str = "NIFTY", strikes_count: int = 10
                 for item in raw:
                     tk = str(item.get('exchange_token') or item.get('tk'))
                     
-                    # 🟢 FIX: 'open_int' for Total OI & 'change' for OI Change 🟢
                     oi = float(item.get('open_int', 0))
                     oi_chg = float(item.get('change', 0)) 
 
@@ -178,37 +185,52 @@ async def toggle_analysis_alert(config: AlertConfig, current_user: dict = Depend
         {"$set": {"analysis_alerts": {"is_active": config.is_active, "index": config.index, "strikes": config.strikes}}},
         upsert=True
     )
+    
+    # 🟢 INSTANT MESSAGE JAISE HI ON HOGA 🟢
+    if config.is_active:
+        msg = f"✅ <b>Alerts Activated for {config.index}!</b>\nAapko har 15 minute mein ({config.strikes} Strikes) ka data milta rahega."
+        asyncio.create_task(send_user_alert(current_user["id"], msg))
+
     return {"status": "success", "message": "Alert updated."}
 
 async def telegram_intelligence_scheduler():
     while True:
-        await asyncio.sleep(900)
         now_time = datetime.now(IST).time()
-        if now_time < datetime.strptime("09:15", "%H:%M").time() or now_time > datetime.strptime("15:30", "%H:%M").time():
-            continue
-        try:
-            user_col = get_collection("users")
-            active_users = await user_col.find({"analysis_alerts.is_active": True}).to_list(length=None)
-            for user in active_users:
-                prefs = user.get("analysis_alerts", {})
-                index = prefs.get("index", "NIFTY")
-                strikes = int(prefs.get("strikes", 10))
-                try:
-                    data = await get_market_intelligence(symbol=index, strikes_count=strikes, current_user={"id": user["id"]})
-                    if data.get("status") == "success":
-                        t_msg = (
-                            f"📊 <b>{index} INTRADAY PREDICTION</b>\n\n"
-                            f"🎯 <b>Spot:</b> {data['spot']}\n"
-                            f"⚖️ <b>Max Pain:</b> {data['maxPain']}\n"
-                            f"📈 <b>PCR:</b> {data['pcr']} ({data['trend']})\n\n"
-                            f"🔍 <b>LIVE DATA ({strikes} Strikes)</b>\n"
-                            f"🔴 <b>Total CE OI:</b> {data['ceTotalOi']} (Chg: {data['ceOiChange']})\n"
-                            f"🟢 <b>Total PE OI:</b> {data['peTotalOi']} (Chg: {data['peOiChange']})\n\n"
-                            f"💥 <b>Result:</b> {data['difference']}"
-                        )
-                        await send_user_alert(user["id"], t_msg)
-                except: pass
-        except: pass
+        # Check if market is open
+        if datetime.strptime("09:15", "%H:%M").time() <= now_time <= datetime.strptime("15:30", "%H:%M").time():
+            try:
+                user_col = get_collection("users")
+                active_users = await user_col.find({"analysis_alerts.is_active": True}).to_list(length=None)
+                
+                for user in active_users:
+                    prefs = user.get("analysis_alerts", {})
+                    index = prefs.get("index", "NIFTY")
+                    strikes = int(prefs.get("strikes", 10))
+                    
+                    try:
+                        # Fetch the data
+                        data = await get_market_intelligence(symbol=index, strikes_count=strikes, current_user={"id": user["id"]})
+                        
+                        if data.get("status") == "success":
+                            t_msg = (
+                                f"📊 <b>{index} INTRADAY PREDICTION</b>\n\n"
+                                f"🎯 <b>Spot:</b> {data['spot']}\n"
+                                f"⚖️ <b>Max Pain:</b> {data['maxPain']}\n"
+                                f"📈 <b>PCR:</b> {data['pcr']} ({data['trend']})\n\n"
+                                f"🔍 <b>LIVE DATA ({strikes} Strikes)</b>\n"
+                                f"🔴 <b>Total CE OI:</b> {data['ceTotalOi']} (Chg: {data['ceOiChange']})\n"
+                                f"🟢 <b>Total PE OI:</b> {data['peTotalOi']} (Chg: {data['peOiChange']})\n\n"
+                                f"💥 <b>Result:</b> {data['difference']}"
+                            )
+                            await send_user_alert(user["id"], t_msg)
+                    except Exception as inner_e:
+                        print(f"⚠️ Scheduler Data Error for {user['id']}: {inner_e}")
+                        
+            except Exception as e:
+                print(f"⚠️ Scheduler DB Error: {e}")
+        
+        # Wait for 15 minutes AFTER checking/sending
+        await asyncio.sleep(900)
 
 @router.on_event("startup")
 async def start_background_tasks():

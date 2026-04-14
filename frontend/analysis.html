@@ -2,173 +2,244 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Market Intelligence - AlgoSaaS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Market Intelligence - AlgoSaaS Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: {
+                        primary: '#2563eb',
+                        success: '#059669',
+                        danger: '#e11d48' 
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #111827; }
-        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #4B5563; }
-        .loader { border: 2px solid rgba(255,255,255,0.1); border-top: 2px solid #fff; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; display: inline-block; }
+        body { 
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #0f172a; 
+            background-attachment: fixed;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .loader { border: 2px solid rgba(0,0,0,0.1); border-top: 2px solid #2563eb; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="bg-gray-950 text-white p-4 md:p-8 font-sans min-h-screen">
+<body class="p-4 md:p-6 min-h-screen">
 
-    <!-- HEADER SECTION -->
-    <div class="mb-8 flex justify-between items-center">
-        <div>
-            <h1 class="text-3xl font-bold text-emerald-400">Market Intelligence</h1>
-            <p class="text-gray-400 text-sm mt-1">Live PCR, Max Pain & OI Analytics Engine</p>
+    <div class="max-w-4xl mx-auto">
+        <div class="mb-6 flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl shadow-inner">📊</div>
+                <div>
+                    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Market Intelligence</h1>
+                    <p class="text-slate-500 text-xs font-bold mt-0.5">Live PCR, Max Pain & OI Analytics</p>
+                </div>
+            </div>
+            <button onclick="window.history.back()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border border-slate-300 active:scale-95 shadow-sm flex items-center gap-2">
+                <span>&larr;</span> Back
+            </button>
         </div>
-        <button onclick="window.history.back()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm transition-all border border-gray-700 font-bold">
-            &larr; Back to Home
-        </button>
-    </div>
 
-    <!-- CONTROLS SECTION -->
-    <div class="bg-gray-900 p-5 rounded-xl border border-gray-800 flex flex-col md:flex-row gap-4 justify-between items-center mb-8">
-        <div class="flex gap-4 w-full md:w-auto">
-            <select id="indexSelect" class="bg-gray-800 text-white p-2.5 rounded-lg border border-gray-700 outline-none focus:border-emerald-500 w-full md:w-auto font-bold">
-                <option value="NIFTY">NIFTY</option>
-                <option value="BANKNIFTY">BANKNIFTY</option>
-                <option value="SENSEX">SENSEX</option>
-            </select>
+        <div class="glass-card p-4 rounded-2xl border border-slate-200 flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <span class="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Select Index:</span>
+                <select id="indexSelect" class="bg-white text-slate-900 px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-bold shadow-sm">
+                    <option value="NIFTY">NIFTY 50</option>
+                    <option value="BANKNIFTY">BANKNIFTY</option>
+                    <option value="SENSEX">SENSEX</option>
+                </select>
+                
+                <button onclick="fetchAnalysisData()" id="refreshBtn" class="bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center min-w-[50px] shadow-sm">
+                    ↻
+                </button>
+            </div>
+            <div class="hidden md:block text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                Last Sync: <span id="ui-updated" class="text-blue-600">--:--:--</span>
+            </div>
+        </div>
 
-            <!-- 🟢 YAHAN JAVASCRIPT SE OPTIONS AAYENGE 🟢 -->
-            <select id="strikeCount" class="bg-gray-800 text-white p-2.5 rounded-lg border border-gray-700 outline-none focus:border-emerald-500 w-full md:w-auto font-bold">
-                <!-- Options populated by JS -->
-            </select>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 text-center shadow-sm relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-16 h-16 bg-slate-50 rounded-full"></div>
+                <p class="text-slate-500 text-[10px] font-extrabold uppercase tracking-widest mb-1 relative z-10">Spot Price</p>
+                <p id="ui-spot" class="text-2xl font-black text-slate-800 relative z-10">---</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 text-center shadow-sm relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-16 h-16 bg-amber-50 rounded-full"></div>
+                <p class="text-slate-500 text-[10px] font-extrabold uppercase tracking-widest mb-1 relative z-10">Max Pain</p>
+                <p id="ui-maxpain" class="text-2xl font-black text-amber-600 relative z-10">---</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 text-center shadow-sm relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 w-16 h-16 bg-blue-50 rounded-full"></div>
+                <p class="text-slate-500 text-[10px] font-extrabold uppercase tracking-widest mb-1 relative z-10">Overall PCR</p>
+                <p id="ui-pcr" class="text-2xl font-black text-slate-800 relative z-10">---</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl border-emerald-200 border-2 text-center shadow-md relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
+                <p class="text-slate-500 text-[10px] font-extrabold uppercase tracking-widest mb-1 mt-1">Algo Trend</p>
+                <p id="ui-trend" class="text-xl font-black text-emerald-600 mt-1">---</p>
+            </div>
+        </div>
+
+        <div class="glass-card p-5 rounded-2xl border border-slate-200 mb-6 shadow-sm">
+            <h2 class="text-sm font-extrabold text-slate-800 mb-4 flex items-center gap-2">🛡️ Key Levels (Based on Max OI)</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-rose-50/50 p-4 rounded-xl border border-rose-100">
+                    <p class="text-[10px] font-extrabold text-rose-500 uppercase tracking-widest mb-2">Resistance (CE Writers)</p>
+                    <div class="flex justify-between items-center text-sm font-bold text-slate-700">
+                        <span class="bg-white px-2 py-1 rounded shadow-sm border border-rose-100">R3: <span id="ui-r3" class="text-rose-600">---</span></span>
+                        <span class="bg-white px-2 py-1 rounded shadow-sm border border-rose-100">R2: <span id="ui-r2" class="text-rose-600">---</span></span>
+                        <span class="bg-white px-2 py-1 rounded shadow-sm border border-rose-200 border-b-2">R1: <span id="ui-r1" class="text-rose-600">---</span></span>
+                    </div>
+                </div>
+                <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                    <p class="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest mb-2">Support (PE Writers)</p>
+                    <div class="flex justify-between items-center text-sm font-bold text-slate-700">
+                        <span class="bg-white px-2 py-1 rounded shadow-sm border border-emerald-200 border-b-2">S1: <span id="ui-s1" class="text-emerald-600">---</span></span>
+                        <span class="bg-white px-2 py-1 rounded shadow-sm border border-emerald-100">S2: <span id="ui-s2" class="text-emerald-600">---</span></span>
+                        <span class="bg-white px-2 py-1 rounded shadow-sm border border-emerald-100">S3: <span id="ui-s3" class="text-emerald-600">---</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card rounded-2xl border border-slate-200 p-5 shadow-sm mb-6">
+            <h2 class="text-sm font-extrabold text-slate-800 mb-4 border-b border-slate-100 pb-3">📊 Total Open Interest Activity</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="bg-white p-5 rounded-xl border border-rose-100 shadow-sm">
+                    <h3 class="text-rose-600 font-black mb-4 flex justify-between items-center text-sm tracking-tight">
+                        CALL WRITERS
+                        <span class="bg-rose-100 px-2.5 py-1 rounded-md text-[10px] uppercase tracking-widest border border-rose-200">CE Side</span>
+                    </h3>
+                    <div class="flex justify-between items-center mb-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <span class="text-slate-500 text-[11px] font-extrabold uppercase">Total OI:</span>
+                        <span id="ui-ce-oi" class="text-lg font-black text-slate-800">---</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <span class="text-slate-500 text-[11px] font-extrabold uppercase">Intraday Add:</span>
+                        <span id="ui-ce-change" class="text-rose-500 font-bold text-sm">---</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-rose-50/50 p-3 rounded-xl border border-rose-100">
+                        <span class="text-rose-500 text-[11px] font-extrabold uppercase">Last 1-Hour Chg:</span>
+                        <span id="ui-ce-1h" class="text-rose-600 font-black text-sm">---</span>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl border border-emerald-100 shadow-sm">
+                    <h3 class="text-emerald-600 font-black mb-4 flex justify-between items-center text-sm tracking-tight">
+                        PUT WRITERS
+                        <span class="bg-emerald-100 px-2.5 py-1 rounded-md text-[10px] uppercase tracking-widest border border-emerald-200">PE Side</span>
+                    </h3>
+                    <div class="flex justify-between items-center mb-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <span class="text-slate-500 text-[11px] font-extrabold uppercase">Total OI:</span>
+                        <span id="ui-pe-oi" class="text-lg font-black text-slate-800">---</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <span class="text-slate-500 text-[11px] font-extrabold uppercase">Intraday Add:</span>
+                        <span id="ui-pe-change" class="text-emerald-500 font-bold text-sm">---</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                        <span class="text-emerald-500 text-[11px] font-extrabold uppercase">Last 1-Hour Chg:</span>
+                        <span id="ui-pe-1h" class="text-emerald-600 font-black text-sm">---</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-5 text-center p-4 bg-slate-800 rounded-xl border border-slate-700 shadow-inner">
+                <p class="text-[10px] text-slate-400 mb-1 font-extrabold tracking-widest uppercase">Current Market Dominance</p>
+                <p id="ui-diff" class="text-lg font-black text-white tracking-wide">---</p>
+            </div>
+        </div>
+
+        <h2 class="text-sm font-extrabold text-slate-800 mb-3 px-1">📲 Telegram Automation Alerts</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
             
-            <button onclick="fetchAnalysisData()" id="refreshBtn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 rounded-lg font-bold transition-all active:scale-95 flex items-center justify-center min-w-[50px]">
-                ↻
-            </button>
-        </div>
-
-        <!-- TELEGRAM TOGGLE -->
-        <div class="flex items-center gap-3 w-full md:w-auto justify-between bg-gray-800 px-4 py-3 rounded-lg border border-gray-700">
-            <span class="text-sm text-gray-300 font-semibold">15-Min Telegram Alerts</span>
-            <button id="tgToggleBtn" onclick="toggleTelegramAlert()" class="px-4 py-1.5 rounded text-xs font-bold transition-all bg-gray-600 text-gray-300 uppercase">
-                OFF
-            </button>
-        </div>
-    </div>
-
-    <!-- PREDICTION SUMMARY CARDS -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 text-center shadow-lg">
-            <p class="text-gray-500 text-xs mb-1 font-bold">SPOT PRICE</p>
-            <p id="ui-spot" class="text-2xl font-extrabold text-white">---</p>
-        </div>
-        <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 text-center shadow-lg">
-            <p class="text-gray-500 text-xs mb-1 font-bold">MAX PAIN</p>
-            <p id="ui-maxpain" class="text-2xl font-extrabold text-yellow-500">---</p>
-        </div>
-        <div class="bg-gray-900 p-4 rounded-xl border border-gray-800 text-center shadow-lg">
-            <p class="text-gray-500 text-xs mb-1 font-bold">OVERALL PCR</p>
-            <p id="ui-pcr" class="text-2xl font-extrabold text-white">---</p>
-        </div>
-        <div class="bg-gray-900 p-4 rounded-xl border-emerald-900 border-2 text-center relative overflow-hidden shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-            <div class="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
-            <p class="text-gray-400 text-xs mb-1 font-bold">ALGO PREDICTION</p>
-            <p id="ui-trend" class="text-xl font-extrabold text-emerald-400 mt-1">---</p>
-        </div>
-    </div>
-
-    <!-- OI DATA VISUALIZATION -->
-    <div class="bg-gray-900 rounded-xl border border-gray-800 p-5 shadow-lg">
-        <div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
-            <h2 class="text-lg font-bold text-gray-200">Aggregated OI Data (<span id="ui-strike-title">10</span> Strikes)</h2>
-            <span class="text-xs text-gray-500 font-semibold bg-gray-950 px-3 py-1 rounded-full border border-gray-800">Updated: <span id="ui-updated" class="text-emerald-400">---</span></span>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- CE SIDE (Red/Writers) -->
-            <div class="bg-gray-950 p-5 rounded-xl border border-red-900/30">
-                <h3 class="text-red-400 font-bold mb-4 flex justify-between items-center text-sm">
-                    CALL WRITERS (Resistance)
-                    <span class="bg-red-500/20 px-2 py-0.5 rounded text-xs">CE</span>
-                </h3>
-                <div class="flex justify-between items-center mb-3 bg-gray-900 p-3 rounded-lg border border-gray-800">
-                    <span class="text-gray-400 text-xs font-bold uppercase">Total OI:</span>
-                    <span id="ui-ce-oi" class="text-xl font-extrabold text-white">---</span>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm">Master Prediction Alert</h3>
+                        <p class="text-[11px] font-medium text-slate-500 mt-1">Sends Total OI, Max Pain, PCR & S/R levels exactly every 15 minutes.</p>
+                    </div>
                 </div>
-                <div class="flex justify-between items-center bg-gray-900 p-3 rounded-lg border border-gray-800">
-                    <span class="text-gray-400 text-xs font-bold uppercase">Intraday Change:</span>
-                    <span id="ui-ce-change" class="text-red-400 font-bold text-lg">---</span>
+                <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded">15 MIN INTERVAL</span>
+                    <button id="tgTotalBtn" onclick="toggleTotalAlert()" class="px-5 py-2 rounded-xl text-xs font-bold transition-all bg-slate-200 hover:bg-slate-300 text-slate-600 active:scale-95">
+                        TURN ON
+                    </button>
                 </div>
             </div>
 
-            <!-- PE SIDE (Green/Writers) -->
-            <div class="bg-gray-950 p-5 rounded-xl border border-emerald-900/30">
-                <h3 class="text-emerald-400 font-bold mb-4 flex justify-between items-center text-sm">
-                    PUT WRITERS (Support)
-                    <span class="bg-emerald-500/20 px-2 py-0.5 rounded text-xs">PE</span>
-                </h3>
-                <div class="flex justify-between items-center mb-3 bg-gray-900 p-3 rounded-lg border border-gray-800">
-                    <span class="text-gray-400 text-xs font-bold uppercase">Total OI:</span>
-                    <span id="ui-pe-oi" class="text-xl font-extrabold text-white">---</span>
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm">Custom Strikes Alert</h3>
+                        <p class="text-[11px] font-medium text-slate-500 mt-1">Track specific strikes closely.</p>
+                    </div>
                 </div>
-                <div class="flex justify-between items-center bg-gray-900 p-3 rounded-lg border border-gray-800">
-                    <span class="text-gray-400 text-xs font-bold uppercase">Intraday Change:</span>
-                    <span id="ui-pe-change" class="text-emerald-400 font-bold text-lg">---</span>
+                <div class="space-y-3 mb-4">
+                    <div>
+                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Strikes (Max 5, comma separated)</label>
+                        <input type="text" id="customStrikes" placeholder="e.g. 22000, 22100" class="w-full bg-slate-50 border border-slate-200 text-slate-800 font-bold rounded-xl px-3 py-2 text-xs outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Alert Frequency (Min 3 Mins)</label>
+                        <select id="customFreq" class="w-full bg-slate-50 border border-slate-200 text-slate-800 font-bold rounded-xl px-3 py-2 text-xs outline-none focus:border-blue-500">
+                            <option value="3">Every 3 Minutes</option>
+                            <option value="5">Every 5 Minutes</option>
+                            <option value="15">Every 15 Minutes</option>
+                            <option value="30">Every 30 Minutes</option>
+                            <option value="60">Every 1 Hour</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-slate-100 flex justify-end">
+                    <button id="tgCustomBtn" onclick="toggleCustomAlert()" class="w-full px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-slate-200 hover:bg-slate-300 text-slate-600 active:scale-95 shadow-sm">
+                        ENABLE CUSTOM ALERTS
+                    </button>
                 </div>
             </div>
+
         </div>
 
-        <!-- BATTLE RESULT -->
-        <div class="mt-6 text-center p-5 bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl border border-gray-700">
-            <p class="text-xs text-gray-400 mb-2 font-bold tracking-widest uppercase">Result / Difference</p>
-            <p id="ui-diff" class="text-xl font-black text-white">---</p>
-        </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC -->
     <script>
         const API_BASE_URL = "https://3.237.9.9.nip.io/api/v1";
-        let isTelegramOn = false;
-
-        // 🟢 NAYA FUNCTION: AUTO GENERATE 1 TO 100 STRIKES 🟢
-        function generateStrikeOptions() {
-            const select = document.getElementById("strikeCount");
-            select.innerHTML = ""; // Clear pehle se jo bhi ho
-            
-            for(let i = 1; i <= 100; i++) {
-                let opt = document.createElement("option");
-                opt.value = i;
-                
-                if (i === 1) {
-                    opt.text = "1 Strike (ATM Only)";
-                } else if (i === 10) {
-                    opt.text = "10 Strikes (Default)";
-                    opt.selected = true; // 10 strike ko default rakhna hai
-                } else if (i === 100) {
-                    opt.text = "100+ (All Strikes)"; // Backend assumes 100 is "All"
-                } else {
-                    opt.text = i + " Strikes";
-                }
-                
-                select.appendChild(opt);
-            }
-        }
+        
+        let isTotalAlertOn = false;
+        let isCustomAlertOn = false;
 
         async function fetchAnalysisData() {
             const token = localStorage.getItem('saas_token');
             if(!token) { alert("Please login first!"); window.location.href = 'index.html'; return; }
 
             const index = document.getElementById("indexSelect").value;
-            const strikes = document.getElementById("strikeCount").value;
-            
             const btn = document.getElementById("refreshBtn");
             const updateTxt = document.getElementById("ui-updated");
             
-            btn.innerHTML = '<span class="loader"></span>';
-            updateTxt.innerText = "Fetching...";
-            updateTxt.className = "text-yellow-400";
-
+            btn.innerHTML = '<span class="loader border-t-blue-600 border-slate-300"></span>';
+            updateTxt.innerText = "Syncing...";
+            
             try {
-                const res = await fetch(`${API_BASE_URL}/analysis/market-intelligence?symbol=${index}&strikes_count=${strikes}`, {
+                // Stripped strikes_count as backend now fetches all by default
+                const res = await fetch(`${API_BASE_URL}/analysis/market-intelligence?symbol=${index}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
@@ -179,74 +250,125 @@
                     
                     const pcrEl = document.getElementById("ui-pcr");
                     pcrEl.innerText = data.pcr;
-                    pcrEl.className = `text-2xl font-extrabold ${data.pcr > 1 ? 'text-emerald-500' : 'text-rose-500'}`;
+                    pcrEl.className = `text-2xl font-black ${data.pcr > 1.1 ? 'text-emerald-500' : (data.pcr < 0.9 ? 'text-rose-500' : 'text-slate-800')}`;
                     
                     document.getElementById("ui-trend").innerText = data.trend;
+                    
+                    // Total OI & Day Change
                     document.getElementById("ui-ce-oi").innerText = data.ceTotalOi;
-                    document.getElementById("ui-ce-change").innerText = data.ceOiChange;
+                    document.getElementById("ui-ce-change").innerText = data.ceDayChange;
                     document.getElementById("ui-pe-oi").innerText = data.peTotalOi;
-                    document.getElementById("ui-pe-change").innerText = data.peOiChange;
+                    document.getElementById("ui-pe-change").innerText = data.peDayChange;
+                    
+                    // 1-Hour Change
+                    document.getElementById("ui-ce-1h").innerText = data.ce1HourChange;
+                    document.getElementById("ui-pe-1h").innerText = data.pe1HourChange;
+
+                    // Support & Resistance
+                    const s = data.supports || [];
+                    const r = data.resistances || [];
+                    document.getElementById("ui-s1").innerText = s[0] || "---";
+                    document.getElementById("ui-s2").innerText = s[1] || "---";
+                    document.getElementById("ui-s3").innerText = s[2] || "---";
+                    document.getElementById("ui-r1").innerText = r[0] || "---";
+                    document.getElementById("ui-r2").innerText = r[1] || "---";
+                    document.getElementById("ui-r3").innerText = r[2] || "---";
+
                     document.getElementById("ui-diff").innerText = data.difference;
                     
                     updateTxt.innerText = data.lastUpdated;
-                    updateTxt.className = "text-emerald-400";
                 } else {
                     alert("⚠️ Error: " + (data.detail || "Make sure Kotak is connected and Expiry is synced."));
                     updateTxt.innerText = "Failed";
-                    updateTxt.className = "text-rose-400";
                 }
             } catch(err) {
                 alert("Network Error");
                 updateTxt.innerText = "Error";
-                updateTxt.className = "text-rose-400";
             }
             btn.innerHTML = '↻';
         }
 
-        async function toggleTelegramAlert() {
+        async function toggleTotalAlert() {
             const token = localStorage.getItem('saas_token');
-            isTelegramOn = !isTelegramOn;
+            isTotalAlertOn = !isTotalAlertOn;
             
             const payload = {
-                is_active: isTelegramOn,
-                index: document.getElementById("indexSelect").value,
-                strikes: parseInt(document.getElementById("strikeCount").value)
+                is_active: isTotalAlertOn,
+                index: document.getElementById("indexSelect").value
             };
 
-            const res = await fetch(`${API_BASE_URL}/analysis/toggle-analysis-alert`, {
+            const res = await fetch(`${API_BASE_URL}/analysis/toggle-total-alert`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
 
-            const btn = document.getElementById("tgToggleBtn");
+            const btn = document.getElementById("tgTotalBtn");
             if(res.ok) {
-                if(isTelegramOn) {
-                    btn.innerText = "ON";
-                    btn.className = "px-4 py-1.5 rounded text-xs font-black tracking-wider transition-all bg-emerald-600 text-white shadow-[0_0_10px_rgba(16,185,129,0.5)]";
+                if(isTotalAlertOn) {
+                    btn.innerText = "ACTIVE 🟢";
+                    btn.className = "px-5 py-2 rounded-xl text-xs font-extrabold transition-all bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-sm active:scale-95";
                 } else {
-                    btn.innerText = "OFF";
-                    btn.className = "px-4 py-1.5 rounded text-xs font-black tracking-wider transition-all bg-gray-600 text-gray-300";
+                    btn.innerText = "TURN ON";
+                    btn.className = "px-5 py-2 rounded-xl text-xs font-bold transition-all bg-slate-200 hover:bg-slate-300 text-slate-600 active:scale-95";
                 }
             } else {
-                isTelegramOn = !isTelegramOn; // revert back if failed
-                alert("Failed to toggle alert.");
+                isTotalAlertOn = !isTotalAlertOn; 
+                alert("Failed to toggle Total alert.");
             }
         }
 
-        // Event Listeners
+        async function toggleCustomAlert() {
+            const token = localStorage.getItem('saas_token');
+            const strikesInput = document.getElementById("customStrikes").value;
+            const freqStr = document.getElementById("customFreq").value;
+            
+            if(!isCustomAlertOn) {
+                if(!strikesInput.trim()) return alert("Please enter at least 1 strike price.");
+            }
+
+            const strikesArr = strikesInput.split(',').map(s => parseInt(s.trim())).filter(s => !isNaN(s));
+            if(strikesArr.length > 5 && !isCustomAlertOn) return alert("Maximum 5 strikes are allowed.");
+
+            isCustomAlertOn = !isCustomAlertOn;
+            
+            const payload = {
+                is_active: isCustomAlertOn,
+                index: document.getElementById("indexSelect").value,
+                strikes: isCustomAlertOn ? strikesArr : [],
+                frequency_minutes: parseInt(freqStr) || 3
+            };
+
+            const res = await fetch(`${API_BASE_URL}/analysis/toggle-custom-alert`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+
+            const btn = document.getElementById("tgCustomBtn");
+            const inputs = [document.getElementById("customStrikes"), document.getElementById("customFreq")];
+
+            if(res.ok) {
+                if(isCustomAlertOn) {
+                    btn.innerText = "ALERTS RUNNING ⚡";
+                    btn.className = "w-full px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all bg-blue-600 hover:bg-blue-700 text-white shadow-[0_5px_15px_rgba(37,99,235,0.3)] active:scale-95";
+                    inputs.forEach(el => { el.disabled = true; el.classList.add("opacity-60"); });
+                } else {
+                    btn.innerText = "ENABLE CUSTOM ALERTS";
+                    btn.className = "w-full px-5 py-2.5 rounded-xl text-xs font-bold transition-all bg-slate-200 hover:bg-slate-300 text-slate-600 active:scale-95 shadow-sm";
+                    inputs.forEach(el => { el.disabled = false; el.classList.remove("opacity-60"); });
+                }
+            } else {
+                isCustomAlertOn = !isCustomAlertOn; 
+                alert("Failed to toggle Custom alert.");
+            }
+        }
+
         window.onload = () => { 
-            generateStrikeOptions(); // Pehle dropdown load hoga
-            fetchAnalysisData();     // Phir data aayega
+            fetchAnalysisData(); 
         };
         
         document.getElementById("indexSelect").addEventListener("change", fetchAnalysisData);
-        document.getElementById("strikeCount").addEventListener("change", function() {
-            let val = this.value;
-            // UI mein title update karne ke liye
-            document.getElementById("ui-strike-title").innerText = val == 100 ? "All" : val;
-            fetchAnalysisData();
-        });
     </script>
 </body>
 </html>

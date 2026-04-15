@@ -32,21 +32,16 @@ GLOBAL_SNAPSHOTS = {"NIFTY": [], "SENSEX": [], "BANKNIFTY": []}
 def record_snapshot(index: str, ce_tot: float, pe_tot: float):
     now = datetime.now(IST)
     GLOBAL_SNAPSHOTS[index].append({"time": now, "ce_tot": ce_tot, "pe_tot": pe_tot})
-    # Keep only the last 2 hours to avoid memory leaks
     cutoff = now - timedelta(hours=2)
     GLOBAL_SNAPSHOTS[index] = [s for s in GLOBAL_SNAPSHOTS[index] if s["time"] >= cutoff]
 
 def get_1h_change(index: str, current_ce_tot: float, current_pe_tot: float):
     if not GLOBAL_SNAPSHOTS[index]: return 0, 0, 0
     target_time = datetime.now(IST) - timedelta(hours=1)
-    # Find the snapshot closest to 1 hour ago
     closest = min(GLOBAL_SNAPSHOTS[index], key=lambda x: abs((x["time"] - target_time).total_seconds()))
-    
-    # If the closest snapshot is too recent (e.g., bot just started), use it, but indicate the actual minutes
     ce_diff = current_ce_tot - closest["ce_tot"]
     pe_diff = current_pe_tot - closest["pe_tot"]
     mins_passed = int((datetime.now(IST) - closest["time"]).total_seconds() / 60)
-    
     return ce_diff, pe_diff, mins_passed
 
 def get_kotak_client(user_id: str):
@@ -58,12 +53,9 @@ def format_oi(value):
     is_negative = value < 0
     abs_val = abs(value)
     res = ""
-    if abs_val >= 10000000:
-        res = f"{abs_val / 10000000:.2f} Cr"
-    elif abs_val >= 100000:
-        res = f"{abs_val / 100000:.2f} L"
-    else:
-        res = str(int(abs_val))
+    if abs_val >= 10000000: res = f"{abs_val / 10000000:.2f} Cr"
+    elif abs_val >= 100000: res = f"{abs_val / 100000:.2f} L"
+    else: res = str(int(abs_val))
     return f"-{res}" if is_negative else res
 
 def calculate_max_pain(options_data):
@@ -75,10 +67,8 @@ def calculate_max_pain(options_data):
         total_loss = 0
         for opt in options_data:
             stk = opt["strike"]
-            if current_strike > stk:
-                total_loss += (current_strike - stk) * opt.get("ce_oi", 0)
-            elif current_strike < stk:
-                total_loss += (stk - current_strike) * opt.get("pe_oi", 0)
+            if current_strike > stk: total_loss += (current_strike - stk) * opt.get("ce_oi", 0)
+            elif current_strike < stk: total_loss += (stk - current_strike) * opt.get("pe_oi", 0)
         if total_loss < min_loss:
             min_loss = total_loss
             max_pain_strike = current_strike
@@ -115,7 +105,7 @@ class CustomStrikeConfig(BaseModel):
     is_active: bool
     index: str
     strikes: List[int] = Field(..., max_items=5)
-    frequency_minutes: int # Allowed: 3, 5, 15, 30, 60
+    frequency_minutes: int 
 
 # --- WEBHOOK & ALGO ROUTES ---
 @router.post("/telegram/webhook")
@@ -209,35 +199,73 @@ async def core_algo_execution(user_id: str, mode: str):
     elif index == "BANKNIFTY": qty = "15"
     elif index == "SENSEX": qty = "20"
     else: qty = "65"
-        
-    coll_name, exch_seg = f"{index.lower()}_strike_data", "bse_fo" if index == "SENSEX" else "nse_fo"
 
     try: client = get_kotak_client(user_id)
     except HTTPException: return {"status": "error", "message": "Kotak Session OFF! Please Login."}
 
+    # 🚀 STEP 1: GET SPOT PRICE TO FIND ATM
+    conf = INDICES_CONFIG.get(index)
+    try:
+        q = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
+        item = q[0] if isinstance(q, list) else q.get('data', [{}])[0]
+        spot_ltp = float(item.get('ltp', 0))
+        if spot_ltp == 0 and index == "SENSEX":
+            q = client.quotes(instrument_tokens=[{"instrument_token": "SENSEX", "exchange_segment": "bse_cm"}], quote_type="all")
+            item = q[0] if isinstance(q, list) else q.get('data', [{}])[0]
+            spot_ltp = float(item.get('ltp', 0))
+    except:
+        spot_ltp = 0
+        
+    coll_name, exch_seg = conf["Coll"], conf["Exchange"]
     coll = get_collection(coll_name)
     cursor = await coll.find().to_list(length=None)
     if not cursor: return {"status": "error", "message": f"No {index} data in DB. Update Weekly Expiry!"}
 
-    tokens_req = [{"instrument_token": doc["Token"], "exchange_segment": exch_seg} for doc in cursor]
-    ce_list, pe_list = [] , []
+    # 🚀 STEP 2: SORT STRIKES FROM ATM OUTWARDS
+    if spot_ltp > 0:
+        atm = round(spot_ltp / conf["Gap"]) * conf["Gap"]
+        cursor.sort(key=lambda x: abs(x["Strike"] - atm)) # Sort: Closest to ATM first
     
+    tokens_req = [{"instrument_token": doc["Token"], "exchange_segment": exch_seg, "type": doc["Type"], "sym": doc["Symbol"], "strike": doc["Strike"]} for doc in cursor]
+    
+    best_ce = None
+    best_pe = None
+    
+    # 🚀 STEP 3: FETCH IN BATCHES AND STOP EARLY
     for i in range(0, len(tokens_req), 50):
+        batch = tokens_req[i:i+50]
         try:
-            raw = client.quotes(instrument_tokens=tokens_req[i:i+50], quote_type="all")
+            req_batch = [{"instrument_token": b["instrument_token"], "exchange_segment": b["exchange_segment"]} for b in batch]
+            raw = client.quotes(instrument_tokens=req_batch, quote_type="all")
             raw_data = raw if isinstance(raw, list) else raw.get('data', [])
+            
+            # Map LTP for quick lookup
+            ltp_map = {}
             for item in raw_data:
-                tk, ltp, oi = str(item.get('exchange_token', item.get('tk'))), float(item.get('ltp', 0)), float(item.get('open_int', item.get('oi', 0)))
-                doc = next((d for d in cursor if d["Token"] == tk), None)
-                if doc and ltp > 0:
-                    if doc["Type"] == "CE": ce_list.append({"sym": doc["Symbol"], "tk": tk, "ltp": ltp, "oi": oi})
-                    else: pe_list.append({"sym": doc["Symbol"], "tk": tk, "ltp": ltp, "oi": oi})
-        except: pass
+                tk = str(item.get('exchange_token', item.get('tk')))
+                ltp_map[tk] = {
+                    "ltp": float(item.get('ltp', 0)),
+                    "oi": float(item.get('open_int', item.get('oi', 0)))
+                }
 
-    ce_list.sort(key=lambda x: x["ltp"], reverse=True)
-    pe_list.sort(key=lambda x: x["ltp"], reverse=True)
-    best_ce = next((x for x in ce_list if x["ltp"] <= target_premium), None)
-    best_pe = next((x for x in pe_list if x["ltp"] <= target_premium), None)
+            # Check prices moving outwards from ATM
+            for b in batch:
+                tk = b["instrument_token"]
+                if tk in ltp_map:
+                    ltp = ltp_map[tk]["ltp"]
+                    oi = ltp_map[tk]["oi"]
+                    
+                    if 0 < ltp <= target_premium:
+                        if b["type"] == "CE" and not best_ce:
+                            best_ce = {"sym": b["sym"], "tk": tk, "ltp": ltp, "oi": oi}
+                        elif b["type"] == "PE" and not best_pe:
+                            best_pe = {"sym": b["sym"], "tk": tk, "ltp": ltp, "oi": oi}
+                            
+            # 🚀 EARLY EXIT: Stop API calls if both CE & PE are found
+            if best_ce and best_pe:
+                break
+                
+        except Exception as e: pass
 
     if not best_ce or not best_pe: return {"status": "error", "message": f"Could not find {index} CE/PE below ₹{target_premium}"}
 
@@ -245,7 +273,8 @@ async def core_algo_execution(user_id: str, mode: str):
     ce_sl_trigger = round_to_tick(ce_ltp * (1 + sl_pct/100))
     pe_sl_trigger = round_to_tick(pe_ltp * (1 + sl_pct/100))
     
-    ce_sl_limit, pe_sl_limit = round_to_tick(ce_sl_trigger + 10.0), round_to_tick(pe_sl_trigger + 10.0)
+    ce_sl_limit = round_to_tick(ce_sl_trigger + 10.0)
+    pe_sl_limit = round_to_tick(pe_sl_trigger + 10.0)
 
     if mode == "REAL":
         try:
@@ -257,9 +286,7 @@ async def core_algo_execution(user_id: str, mode: str):
                     raise Exception(f"{order_name} Error: " + str(resp))
                 return resp
 
-            # 🚀 SMART LIMIT ORDER (Market Order Bypass)
-            # LTP se 3 points niche Limit lagayenge taaki instant Market price par sell ho.
-            # max(..., 0.5) ensures ki price galti se negative/zero na ho jaye.
+            # 🚀 SMART LIMIT ORDER
             ce_entry_price = round_to_tick(max(ce_ltp - 3.0, 0.5))
             pe_entry_price = round_to_tick(max(pe_ltp - 3.0, 0.5))
 
@@ -305,7 +332,7 @@ async def toggle_total_alert(config: TotalAlertConfig, current_user: dict = Depe
             "is_active": config.is_active, 
             "index": config.index, 
             "last_sent_time": None,
-            "min_frequency": 15 # 🚀 STRICT 15 MINS FOR TOTAL
+            "min_frequency": 15
         }}},
         upsert=True
     )
@@ -317,8 +344,6 @@ async def toggle_total_alert(config: TotalAlertConfig, current_user: dict = Depe
 @router.post("/toggle-custom-alert")
 async def toggle_custom_alert(config: CustomStrikeConfig, current_user: dict = Depends(get_current_user)):
     user_col = get_collection("users")
-    
-    # 🚀 ENFORCE MINIMUM 3 MINUTES LIMIT
     final_freq = max(3, config.frequency_minutes)
     
     await user_col.update_one(
@@ -394,18 +419,16 @@ async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = De
                             pe_tot_oi += oi; pe_tot_chg += oi_chg
             except: pass
 
-        # 🟢 Support & Resistance Logic 🟢
         valid_strikes = [s for s in strike_map.values() if s["ce_oi"] > 0 or s["pe_oi"] > 0]
         
         above_atm = [s for s in valid_strikes if s["strike"] > atm]
         resistances = sorted(above_atm, key=lambda x: x["ce_oi"], reverse=True)[:3]
-        resistances = sorted(resistances, key=lambda x: x["strike"]) # R1, R2, R3 (Ascending)
+        resistances = sorted(resistances, key=lambda x: x["strike"]) 
         
         below_atm = [s for s in valid_strikes if s["strike"] < atm]
         supports = sorted(below_atm, key=lambda x: x["pe_oi"], reverse=True)[:3]
-        supports = sorted(supports, key=lambda x: x["strike"], reverse=True) # S1, S2, S3 (Descending)
+        supports = sorted(supports, key=lambda x: x["strike"], reverse=True) 
 
-        # Record snapshot & get 1-Hour change
         record_snapshot(symbol, ce_tot_oi, pe_tot_oi)
         ce_1h_chg, pe_1h_chg, mins_passed = get_1h_change(symbol, ce_tot_oi, pe_tot_oi)
 
@@ -430,7 +453,7 @@ async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = De
             "difference": f"PE Dominating by {format_oi(abs(diff_oi))}" if diff_oi > 0 else f"CE Dominating by {format_oi(abs(diff_oi))}",
             "supports": [s["strike"] for s in supports],
             "resistances": [s["strike"] for s in resistances],
-            "raw_strikes": strike_map, # Hidden backend data for custom alerts
+            "raw_strikes": strike_map, 
             "lastUpdated": datetime.now(IST).strftime("%H:%M:%S")
         }
     except Exception as e:
@@ -506,95 +529,62 @@ async def telegram_intelligence_scheduler():
         if datetime.strptime("09:15", "%H:%M").time() <= now_time <= datetime.strptime("15:30", "%H:%M").time():
             try:
                 user_col = get_collection("users")
-                
-                # Fetch all users that have either total or custom alerts active
                 active_users = await user_col.find({
-                    "$or": [
-                        {"total_alerts.is_active": True},
-                        {"custom_alerts.is_active": True}
-                    ]
+                    "$or": [{"total_alerts.is_active": True}, {"custom_alerts.is_active": True}]
                 }).to_list(length=None)
                 
                 for user in active_users:
-                    # 1️⃣ TOTAL ANALYSIS ALERT (15 Mins Fixed)
+                    # 1️⃣ TOTAL ANALYSIS
                     total_conf = user.get("total_alerts", {})
                     if total_conf.get("is_active"):
                         last_total = total_conf.get("last_sent_time")
-                        should_send = False
-                        
-                        if not last_total:
-                            should_send = True
-                        else:
-                            last_total_dt = datetime.fromisoformat(last_total)
-                            if (now_dt - last_total_dt).total_seconds() >= 15 * 60: # 🚀 STRICT 15 MINS
-                                should_send = True
-                                
-                        if should_send:
+                        if not last_total or (now_dt - datetime.fromisoformat(last_total)).total_seconds() >= 15 * 60:
                             idx = total_conf.get("index", "NIFTY")
                             try:
                                 data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
                                 if data.get("status") == "success":
-                                    s = data["supports"]
-                                    r = data["resistances"]
-                                    
+                                    s, r = data["supports"], data["resistances"]
                                     t_msg = (
                                         f"📊 <b>{idx} MASTER PREDICTION</b>\n\n"
                                         f"🎯 <b>Spot:</b> {data['spot']}\n"
-                                        f"⚖️ <b>Max Pain:</b> {data['maxPain']}\n"
                                         f"📈 <b>PCR:</b> {data['pcr']} ({data['trend']})\n\n"
                                         f"🛡️ <b>KEY LEVELS</b>\n"
                                         f"🔺 <b>R3:</b> {r[2] if len(r)>2 else '-'} | <b>R2:</b> {r[1] if len(r)>1 else '-'} | <b>R1:</b> {r[0] if len(r)>0 else '-'}\n"
                                         f"🔻 <b>S1:</b> {s[0] if len(s)>0 else '-'} | <b>S2:</b> {s[1] if len(s)>1 else '-'} | <b>S3:</b> {s[2] if len(s)>2 else '-'}\n\n"
-                                        f"📅 <b>DAY OPEN INTEREST (All Strikes)</b>\n"
-                                        f"🔴 <b>CE OI:</b> {data['ceTotalOi']} (Added: {data['ceDayChange']})\n"
-                                        f"🟢 <b>PE OI:</b> {data['peTotalOi']} (Added: {data['peDayChange']})\n"
+                                        f"📅 <b>DAY OI (All Strikes)</b>\n"
+                                        f"🔴 <b>CE:</b> {data['ceTotalOi']} | 🟢 <b>PE:</b> {data['peTotalOi']}\n"
                                         f"⚔️ <b>Status:</b> {data['difference']}\n\n"
-                                        f"⏳ <b>LAST {data['historyMins']} MINS ACTIVITY</b>\n"
-                                        f"🔴 <b>CE Change:</b> {data['ce1HourChange']}\n"
-                                        f"🟢 <b>PE Change:</b> {data['pe1HourChange']}"
+                                        f"⏳ <b>LAST {data['historyMins']} MINS CHANGE</b>\n"
+                                        f"🔴 <b>CE:</b> {data['ce1HourChange']} | 🟢 <b>PE:</b> {data['pe1HourChange']}"
                                     )
                                     await send_user_alert(user["id"], t_msg)
                                     await user_col.update_one({"id": user["id"]}, {"$set": {"total_alerts.last_sent_time": now_dt.isoformat()}})
-                            except Exception as e: print(f"Total Alert Error: {e}")
+                            except: pass
 
-                    # 2️⃣ CUSTOM STRIKE ALERT (User Configured Frequency, Min 3 Mins)
+                    # 2️⃣ CUSTOM STRIKES
                     cust_conf = user.get("custom_alerts", {})
                     if cust_conf.get("is_active"):
                         last_cust = cust_conf.get("last_sent_time")
-                        freq = max(3, cust_conf.get("frequency_minutes", 3)) # 🚀 STRICT MINIMUM 3 MINS
-                        should_send = False
-                        
-                        if not last_cust:
-                            should_send = True
-                        else:
-                            last_cust_dt = datetime.fromisoformat(last_cust)
-                            if (now_dt - last_cust_dt).total_seconds() >= freq * 60:
-                                should_send = True
-                                
-                        if should_send:
+                        freq = max(3, cust_conf.get("frequency_minutes", 3))
+                        if not last_cust or (now_dt - datetime.fromisoformat(last_cust)).total_seconds() >= freq * 60:
                             idx = cust_conf.get("index", "NIFTY")
                             target_strikes = cust_conf.get("strikes", [])
                             try:
                                 data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
                                 if data.get("status") == "success":
                                     raw_map = data["raw_strikes"]
-                                    c_msg = f"🎯 <b>{idx} CUSTOM STRIKES UPDATE</b>\n⏱️ <b>Spot:</b> {data['spot']}\n\n"
-                                    
+                                    c_msg = f"🎯 <b>{idx} CUSTOM STRIKES</b>\n⏱️ <b>Spot:</b> {data['spot']}\n\n"
                                     for stk in target_strikes:
                                         if stk in raw_map:
                                             s_data = raw_map[stk]
                                             c_msg += f"⚡ <b>Strike: {stk}</b>\n"
-                                            c_msg += f"🔴 CE OI: {format_oi(s_data['ce_oi'])} (Chg: {format_oi(s_data['ce_chg'])})\n"
-                                            c_msg += f"🟢 PE OI: {format_oi(s_data['pe_oi'])} (Chg: {format_oi(s_data['pe_chg'])})\n\n"
-                                            
+                                            c_msg += f"🔴 CE: {format_oi(s_data['ce_oi'])} ({format_oi(s_data['ce_chg'])})\n"
+                                            c_msg += f"🟢 PE: {format_oi(s_data['pe_oi'])} ({format_oi(s_data['pe_chg'])})\n\n"
                                     await send_user_alert(user["id"], c_msg.strip())
                                     await user_col.update_one({"id": user["id"]}, {"$set": {"custom_alerts.last_sent_time": now_dt.isoformat()}})
-                            except Exception as e: print(f"Custom Alert Error: {e}")
-                            
-            except Exception as e:
-                print(f"⚠️ Scheduler Core Error: {e}")
+                            except: pass
+            except: pass
         
-        # Check every 1 minute
         await asyncio.sleep(60)
 
 @router.on_event("startup")

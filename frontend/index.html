@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AlgoSaaS Pro | Premium Terminal</title>
     
-    <!-- 🟢 HOME SCREEN APP ICON TAGS 🟢 -->
     <link rel="icon" type="image/png" href="/icon.png">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#ffffff">
@@ -65,7 +64,6 @@
 </head>
 <body class="min-h-screen flex flex-col relative selection:bg-primary/20 text-slate-800">
 
-    <!-- AUTH SECTION -->
     <div id="auth-section" class="flex-1 flex items-center justify-center p-4 relative z-10">
         <div class="glass-card w-full max-w-md p-8 rounded-[2rem] transition-all duration-500 relative overflow-hidden">
             <div class="absolute -top-20 -right-20 w-40 h-40 bg-blue-400/20 rounded-full blur-3xl"></div>
@@ -76,7 +74,6 @@
                 <p id="auth-subtitle" class="text-slate-500 mt-2 font-medium text-sm">Login to your trading terminal</p>
             </div>
             
-            <!-- LOGIN FORM -->
             <form id="login-form" onsubmit="handleLogin(event)" class="relative z-10">
                 <div class="mb-5">
                     <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Email Address</label>
@@ -95,7 +92,6 @@
                 <div id="login-error" class="text-rose-500 text-sm font-semibold text-center mt-4 hidden"></div>
             </form>
 
-            <!-- SIGNUP FORM -->
             <form id="signup-form" onsubmit="handleSignup(event)" class="relative z-10 hidden">
                 <div class="mb-4">
                     <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Full Name</label>
@@ -123,7 +119,6 @@
         </div>
     </div>
 
-    <!-- MAIN DASHBOARD & TERMINAL -->
     <div id="dashboard-section" class="hidden flex-1 flex flex-col z-10 max-w-2xl mx-auto w-full">
         
         <header class="glass-card border-t-0 p-4 sticky top-0 z-50 rounded-b-3xl mx-2 mt-0">
@@ -147,7 +142,6 @@
             </div>
         </header>
 
-        <!-- TABS -->
         <div class="flex bg-white/60 backdrop-blur-md mx-2 mt-5 rounded-[1.25rem] overflow-hidden border border-slate-200 shadow-sm p-1">
             <button onclick="switchTab('home')" id="tab-home" class="flex-1 py-3 text-[13px] font-bold text-blue-700 bg-white rounded-xl shadow-sm transition-all">Home</button>
             <button onclick="switchTab('chain')" id="tab-chain" class="flex-1 py-3 text-[13px] font-semibold text-slate-500 bg-transparent rounded-xl transition-all hover:text-slate-800">Option Chain</button>
@@ -156,13 +150,10 @@
 
         <main class="flex-1 w-full relative">
             
-            <!-- PANEL 1: HOME DASHBOARD -->
             <section id="panel-home" class="panel-area p-4">
                 
-                <!-- Live P&L Card -->
                 <div class="relative mb-6">
                     <div class="glass-card rounded-[1.5rem] p-8 text-center border border-slate-200 overflow-hidden relative">
-                        <!-- Soft decorative background shapes -->
                         <div class="absolute -left-10 -top-10 w-40 h-40 bg-blue-100 rounded-full blur-3xl opacity-50"></div>
                         <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-emerald-100 rounded-full blur-3xl opacity-50"></div>
                         
@@ -173,18 +164,16 @@
                     </div>
                 </div>
 
-                <!-- Smart Algo Bot -->
                 <div class="bg-white rounded-[1.5rem] p-6 mb-6 border border-slate-200 shadow-sm relative overflow-hidden">
                     <div class="flex justify-between items-start mb-5 relative z-10">
                         <div>
                             <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
                                 <span class="bg-blue-100 text-blue-600 p-1.5 rounded-lg text-sm">🤖</span> Smart Algo Bot 
-                                <button onclick="openAlgoSettings()" class="text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-full p-1.5 transition-all active:scale-90" title="Strategy Settings">⚙️</button>
                             </h3>
                             <p id="algo-plan" class="text-[13px] text-blue-600 font-bold mt-1.5">Loading Plan...</p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer mt-1">
-                            <input type="checkbox" id="algo-toggle" class="sr-only peer" onchange="toggleAlgo()">
+                            <input type="checkbox" id="algo-toggle" class="sr-only peer" onchange="toggleDefaultAlgo()">
                             <div class="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-500 shadow-inner"></div>
                         </label>
                     </div>
@@ -198,7 +187,7 @@
                     
                     <div class="flex gap-3 relative z-10">
                         <button onclick="viewSavedStrategy()" class="flex-1 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-xl border border-slate-200 text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
-                            <span class="text-blue-500">📄</span> View Strategy
+                            <span class="text-blue-500">📄</span> My Strategies
                         </button>
                         <button onclick="testAlgoExecution()" id="test-algo-btn" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 py-3.5 rounded-xl text-sm font-bold hidden active:scale-95 transition-all shadow-sm">
                             ⚡ Force Execute
@@ -206,7 +195,6 @@
                     </div>
                 </div>
 
-                <!-- Market Intelligence PRO -->
                 <button onclick="window.location.href='analysis.html'" class="w-full mb-6 bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 text-white font-bold py-5 px-6 rounded-[1.5rem] border border-slate-700 shadow-[0_10px_20px_rgba(0,0,0,0.1)] transition-all flex justify-between items-center group relative overflow-hidden">
                     <div class="absolute -right-10 -top-10 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl group-hover:bg-blue-400/30 transition-all"></div>
                     <div class="flex items-center gap-4 relative z-10">
@@ -223,7 +211,6 @@
                     </span>
                 </button>
 
-                <!-- Market Data Sync -->
                 <div class="bg-white rounded-[1.5rem] p-6 mb-6 border border-slate-200 shadow-sm">
                     <h3 class="font-extrabold text-lg text-slate-900 mb-1 flex items-center gap-2">
                         <span class="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg text-sm">🔄</span> Data Sync
@@ -234,7 +221,6 @@
                     </button>
                 </div>
 
-                <!-- Broker Connection -->
                 <div id="broker-box" class="bg-white rounded-[1.5rem] p-6 mb-6 border border-slate-200 shadow-sm">
                     <h3 class="font-extrabold text-lg text-slate-900 mb-4 flex items-center gap-2">
                         <span class="bg-orange-100 text-orange-600 p-1.5 rounded-lg text-sm">🏦</span> Broker Connection
@@ -247,7 +233,6 @@
                 </div>
             </section>
 
-            <!-- PANEL 2: OPTION CHAIN -->
             <section id="panel-chain" class="panel-area p-4 hidden">
                 <div class="flex justify-between items-center mb-5 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
                     <select id="chart-index" onchange="fetchOptionChain()" class="bg-transparent text-slate-900 font-extrabold outline-none cursor-pointer pl-2 py-1 transition-all">
@@ -272,7 +257,6 @@
                 </div>
             </section>
 
-            <!-- PANEL 3: LIVE POSITIONS -->
             <section id="panel-positions" class="panel-area p-4 hidden flex flex-col h-full">
                 <div class="flex justify-between items-center mb-5">
                     <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">Active Trades <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_5px_#10b981]"></span></h3>
@@ -292,21 +276,26 @@
         </main>
     </div>
 
-    <!-- 🟢 ALGO SETTINGS MODAL 🟢 -->
+    <div id="view-strategy-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-[2rem] border border-slate-100 p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <h3 class="text-lg font-extrabold text-slate-900">📄 My Strategies</h3>
+                <button onclick="closeSavedStrategy()" class="text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl active:scale-90 transition-all">&times;</button>
+            </div>
+            
+            <div id="saved-strategy-content" class="overflow-y-auto flex-1 pr-1 space-y-3 pb-2">
+                <p class="text-sm text-slate-500">Loading...</p>
+            </div>
+            
+            <button onclick="closeSavedStrategy()" class="w-full shrink-0 mt-4 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl active:scale-95 transition-all shadow-md">Close Window</button>
+        </div>
+    </div>
+
     <div id="algo-settings-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-sm rounded-[2rem] border border-slate-100 p-7 shadow-2xl animate-[slideUp_0.2s_ease-out] max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">⚙️ Settings</h3>
+                <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">⚙️ New Strategy</h3>
                 <button onclick="closeAlgoSettings()" class="text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl active:scale-90 transition-all">&times;</button>
-            </div>
-
-            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6">
-                <label class="flex items-center justify-between cursor-pointer">
-                    <span class="text-sm font-bold text-slate-800">Use Default Strategy</span>
-                    <input type="checkbox" id="cfg-default" class="sr-only peer" onchange="toggleCustomSettings()">
-                    <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all shadow-inner"></div>
-                </label>
-                <p class="text-[11px] text-slate-500 mt-2.5 leading-relaxed font-medium">System decides: Mon/Fri Nifty (₹6), Tue Sensex (₹12) at 10:00 AM.</p>
             </div>
 
             <div id="custom-settings-div" class="space-y-5 transition-all">
@@ -351,27 +340,12 @@
                 </div>
             </div>
 
-            <button onclick="saveAlgoConfig()" id="save-cfg-btn" class="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-[0_8px_20px_rgba(37,99,235,0.25)] active:scale-[0.98] flex justify-center items-center gap-2">
-                <span>Save Configuration</span>
+            <button onclick="addCustomStrategy()" id="save-cfg-btn" class="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-[0_8px_20px_rgba(37,99,235,0.25)] active:scale-[0.98] flex justify-center items-center gap-2">
+                <span>Save New Strategy</span>
             </button>
         </div>
     </div>
 
-    <!-- 🟢 VIEW SAVED STRATEGY MODAL 🟢 -->
-    <div id="view-strategy-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-[2rem] border border-slate-100 p-7 shadow-2xl">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-extrabold text-slate-900">📄 Active Strategy</h3>
-                <button onclick="closeSavedStrategy()" class="text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl active:scale-90 transition-all">&times;</button>
-            </div>
-            <div id="saved-strategy-content" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-[13px] text-slate-700 space-y-2.5 font-medium">
-                Loading...
-            </div>
-            <button onclick="closeSavedStrategy()" class="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl active:scale-95 transition-all shadow-md">Close Window</button>
-        </div>
-    </div>
-
-    <!-- ORDER MODAL -->
     <div id="order-modal" class="hidden fixed inset-0 z-50 modal-overlay flex items-end justify-center sm:items-center">
         <div class="bg-white border-t sm:border border-slate-200 sm:rounded-[2rem] rounded-t-[2rem] p-7 w-full max-w-sm shadow-2xl">
             <div class="flex justify-between items-center mb-6">
@@ -397,7 +371,6 @@
         </div>
     </div>
 
-    <!-- KOTAK CONNECT MODAL -->
     <div id="kotak-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-md rounded-[2rem] border border-slate-100 p-7 shadow-2xl animate-[slideUp_0.2s_ease-out]">
             <div class="flex justify-between items-center mb-6">
@@ -427,16 +400,18 @@
         </div>
     </div>
 
-    <!-- JS LOGIC (UNTOUCHED) -->
     <script>
-        // 🟢 YAHAN PERMANENT HTTPS LINK UPDATE KIYA HAI 🟢
         const API_BASE_URL = "https://3.237.9.9.nip.io/api/v1"; 
         const WS_BASE_URL = "wss://3.237.9.9.nip.io/ws/live-data";
      
         let wsConnection = null;
         let currentAtm = 0;
         let selectedOrder = {};
-        let savedAlgoConfig = null;
+        
+        // Strategy Globals
+        let savedDefaultActive = false;
+        let savedCustomStrats = [];
+        let savedPlanToday = "";
 
         window.onload = () => {
             const token = localStorage.getItem('saas_token');
@@ -447,7 +422,6 @@
             }
         };
 
-        // --- AUTH TOGGLE LOGIC ---
         function toggleAuthMode(mode) {
             if(mode === 'signup') {
                 document.getElementById('login-form').classList.add('hidden');
@@ -460,7 +434,6 @@
             }
         }
 
-        // --- AUTH LOGIC (SIGNUP & LOGIN) ---
         async function handleSignup(e) {
             e.preventDefault();
             const btn = document.getElementById('signup-btn'); 
@@ -476,24 +449,14 @@
             };
 
             try {
-                const res = await fetch(`${API_BASE_URL}/auth/signup`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify(payload) 
-                });
+                const res = await fetch(`${API_BASE_URL}/auth/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await res.json();
-                
                 if(res.ok || res.status === 201) {
                     alert("✅ Account Created Successfully! Please login now.");
-                    toggleAuthMode('login');
-                    document.getElementById('login-email').value = payload.email;
-                } else {
-                    alert("❌ Signup Failed: " + (data.detail || "Error"));
-                }
+                    toggleAuthMode('login'); document.getElementById('login-email').value = payload.email;
+                } else alert("❌ Signup Failed: " + (data.detail || "Error"));
             } catch (err) { alert("Network Error"); }
-            
-            btn.innerHTML = originalHTML;
-            btn.disabled = false;
+            btn.innerHTML = originalHTML; btn.disabled = false;
         }
 
         async function handleLogin(e) {
@@ -510,7 +473,6 @@
             btn.innerHTML = 'Secure Login';
         }
 
-        // --- TAB SYSTEM ---
         function switchTab(tab) {
             document.getElementById('panel-home').classList.add('hidden');
             document.getElementById('panel-chain').classList.add('hidden');
@@ -535,64 +497,139 @@
         }
         function logout() { localStorage.clear(); location.reload(); }
 
-        // --- ALGO BOT & CONFIG LOGIC ---
+        // --- NEW STRATEGY & ALGO LOGIC ---
         async function fetchAlgoStatus() {
             const token = localStorage.getItem('saas_token'); if(!token) return;
             const res = await fetch(`${API_BASE_URL}/algo/status`, { headers: { 'Authorization': `Bearer ${token}` }});
             const data = await res.json();
             if(res.ok) {
-                savedAlgoConfig = data.config;
-                document.getElementById('algo-toggle').checked = data.is_active;
-                document.getElementById('algo-plan').innerText = `Plan: ${data.plan_today}`;
-                document.getElementById('algo-status-text').innerHTML = data.is_active ? (data.executed_today ? "🟢 Trades Running" : "🟡 Active (Waiting)") : "⚪ Offline";
-                if(data.is_active) document.getElementById('test-algo-btn').classList.remove('hidden'); else document.getElementById('test-algo-btn').classList.add('hidden');
+                savedDefaultActive = data.is_active;
+                savedCustomStrats = data.custom_strategies || [];
+                savedPlanToday = data.plan_today;
                 
-                const cfg = data.config;
-                document.getElementById('cfg-default').checked = cfg.use_default;
-                document.getElementById('cfg-index').value = cfg.index || "NIFTY";
-                document.getElementById('cfg-premium').value = cfg.max_premium || 6;
-                document.getElementById('cfg-sl').value = cfg.sl_pct || 200;
-                if(cfg.entry_time) { const p = cfg.entry_time.split(":"); document.getElementById('cfg-hour').value = p[0]; document.getElementById('cfg-minute').value = p[1]; }
-                document.querySelectorAll('.day-cb').forEach(cb => cb.checked = false);
-                if(cfg.active_days) cfg.active_days.forEach(d => { const box = document.querySelector(`.day-cb[value="${d}"]`); if(box) box.checked = true; });
-                toggleCustomSettings();
+                document.getElementById('algo-toggle').checked = savedDefaultActive;
+                document.getElementById('algo-plan').innerText = `Plan: ${savedPlanToday}`;
+                
+                let activeCount = (savedDefaultActive ? 1 : 0) + savedCustomStrats.filter(s => s.is_active).length;
+                document.getElementById('algo-status-text').innerHTML = activeCount > 0 ? `🟢 ${activeCount} Active Strats` : "⚪ Offline";
+                
+                if(activeCount > 0) document.getElementById('test-algo-btn').classList.remove('hidden'); 
+                else document.getElementById('test-algo-btn').classList.add('hidden');
             }
         }
-        async function toggleAlgo() { const res = await fetch(`${API_BASE_URL}/algo/toggle`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); if(res.ok) fetchAlgoStatus(); }
-        function openAlgoSettings() { document.getElementById('algo-settings-modal').classList.remove('hidden'); }
-        function closeAlgoSettings() { document.getElementById('algo-settings-modal').classList.add('hidden'); }
-        function toggleCustomSettings() {
-            const isDef = document.getElementById('cfg-default').checked; const div = document.getElementById('custom-settings-div');
-            div.style.opacity = isDef ? '0.4' : '1'; div.style.pointerEvents = isDef ? 'none' : 'auto';
+
+        async function toggleDefaultAlgo() { 
+            const res = await fetch(`${API_BASE_URL}/algo/toggle`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); 
+            if(res.ok) { fetchAlgoStatus(); if(document.getElementById('view-strategy-modal').classList.contains('hidden') === false) viewSavedStrategy(); } 
         }
-        async function saveAlgoConfig() {
+
+        async function toggleCustomStrategy(id) {
+            const res = await fetch(`${API_BASE_URL}/algo/toggle-strategy/${id}`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
+            if(res.ok) { fetchAlgoStatus().then(() => viewSavedStrategy()); }
+        }
+
+        async function deleteStrategy(id) {
+            if(!confirm("Delete this custom strategy?")) return;
+            const res = await fetch(`${API_BASE_URL}/algo/delete-strategy/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
+            if(res.ok) { fetchAlgoStatus().then(() => viewSavedStrategy()); }
+        }
+
+        function openAlgoSettings() { 
+            // Reset form for new entry
+            document.querySelectorAll('.day-cb').forEach(cb => cb.checked = false);
+            document.getElementById('cfg-hour').value = ""; document.getElementById('cfg-minute').value = "";
+            document.getElementById('algo-settings-modal').classList.remove('hidden'); 
+        }
+        function closeAlgoSettings() { document.getElementById('algo-settings-modal').classList.add('hidden'); }
+
+        async function addCustomStrategy() {
             const btn = document.getElementById('save-cfg-btn');
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<span class="loader loader-white mr-2"></span> Saving...';
+            btn.disabled = true;
             
-            const token = localStorage.getItem('saas_token');
             const days = Array.from(document.querySelectorAll('.day-cb:checked')).map(cb => parseInt(cb.value));
+            if(days.length === 0) { alert("Select at least 1 day."); btn.innerHTML = originalHTML; btn.disabled = false; return; }
+            if(!document.getElementById('cfg-hour').value || !document.getElementById('cfg-minute').value) { alert("Enter Valid Time"); btn.innerHTML = originalHTML; btn.disabled = false; return; }
+
             const payload = {
-                use_default: document.getElementById('cfg-default').checked, index: document.getElementById('cfg-index').value,
-                max_premium: parseFloat(document.getElementById('cfg-premium').value || 6), sl_pct: parseFloat(document.getElementById('cfg-sl').value || 200),
+                index: document.getElementById('cfg-index').value,
+                max_premium: parseFloat(document.getElementById('cfg-premium').value || 10), 
+                sl_pct: parseFloat(document.getElementById('cfg-sl').value || 200),
                 entry_time: `${document.getElementById('cfg-hour').value.padStart(2, '0')}:${document.getElementById('cfg-minute').value.padStart(2, '0')}`,
                 active_days: days
             };
-            const res = await fetch(`${API_BASE_URL}/algo/config`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
-            if(res.ok) { alert("✅ Settings Saved"); closeAlgoSettings(); fetchAlgoStatus(); } else alert("❌ Error saving");
             
-            btn.innerHTML = originalHTML;
+            const res = await fetch(`${API_BASE_URL}/algo/add-strategy`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }, body: JSON.stringify(payload) });
+            const data = await res.json();
+            
+            if(res.ok && data.status === "success") { 
+                alert("✅ Strategy Added"); closeAlgoSettings(); fetchAlgoStatus().then(() => viewSavedStrategy()); 
+            } else { alert("❌ " + (data.message || "Error")); }
+            
+            btn.innerHTML = originalHTML; btn.disabled = false;
         }
+
         function viewSavedStrategy() {
             document.getElementById('view-strategy-modal').classList.remove('hidden');
-            const content = document.getElementById('saved-strategy-content');
-            if(!savedAlgoConfig) { content.innerHTML = "No configuration found."; return; }
-            if(savedAlgoConfig.use_default) content.innerHTML = `<div class="text-emerald-600 font-extrabold mb-2 text-sm tracking-wide">🟢 DEFAULT STRATEGY</div><p><b>Index:</b> NIFTY (Mon/Fri) | SENSEX (Tue)</p><p><b>Premium:</b> Nifty <= ₹6 | Sensex <= ₹12</p><p><b>Stoploss:</b> 200%</p><p><b>Time:</b> 10:00 AM</p>`;
-            else {
-                const dayMap = {0:"Mon", 1:"Tue", 2:"Wed", 3:"Thu", 4:"Fri", 5:"Sat", 6:"Sun"};
-                content.innerHTML = `<div class="text-blue-600 font-extrabold mb-2 text-sm tracking-wide">🔵 CUSTOM STRATEGY</div><p><b>Index:</b> ${savedAlgoConfig.index}</p><p><b>Active Days:</b> ${(savedAlgoConfig.active_days || []).map(d => dayMap[d]).join(", ") || "None"}</p><p><b>Premium Limit:</b> <= ₹${savedAlgoConfig.max_premium}</p><p><b>Stoploss:</b> ${savedAlgoConfig.sl_pct}%</p><p><b>Execution Time:</b> ${savedAlgoConfig.entry_time}</p>`;
+            let html = `
+            <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl relative shadow-sm">
+                <div class="flex justify-between items-center mb-2.5">
+                    <h4 class="font-extrabold text-blue-700 text-sm flex items-center gap-1.5">🟢 Default Strategy</h4>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" class="sr-only peer" ${savedDefaultActive ? 'checked' : ''} onchange="toggleDefaultAlgo()">
+                        <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                    </label>
+                </div>
+                <p class="text-xs text-slate-700 leading-relaxed font-medium">
+                    <b class="text-slate-900">Mon, Tue, Fri:</b> NIFTY <= ₹6 | SL: 200%<br>
+                    <b class="text-slate-900">Wed, Thu:</b> SENSEX <= ₹12 | SL: 300%<br>
+                    <b class="text-slate-900">Time:</b> 10:00 AM
+                </p>
+            </div>
+            `;
+            
+            if(savedCustomStrats.length > 0) {
+                savedCustomStrats.forEach(s => {
+                    const dayMap = {0:"Mon", 1:"Tue", 2:"Wed", 3:"Thu", 4:"Fri", 5:"Sat", 6:"Sun"};
+                    const daysStr = s.active_days.map(d => dayMap[d]).join(", ");
+                    const statusColor = s.time_remaining.includes("Passed") ? "text-rose-500" : (s.time_remaining.includes("Executed") ? "text-emerald-600" : "text-blue-600");
+                    
+                    html += `
+                    <div class="mb-3 p-4 bg-slate-50 border border-slate-200 rounded-xl relative shadow-sm">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="font-extrabold text-slate-800 text-sm">🔵 Custom: ${s.index}</h4>
+                            <div class="flex items-center gap-3">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" class="sr-only peer" ${s.is_active ? 'checked' : ''} onchange="toggleCustomStrategy('${s.id}')">
+                                    <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                                </label>
+                                <button onclick="deleteStrategy('${s.id}')" class="text-rose-500 hover:text-rose-700 active:scale-90 bg-rose-50 p-1.5 rounded-lg border border-rose-100 transition-all">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="text-[11px] text-slate-600 space-y-1.5 font-medium">
+                            <p><b class="text-slate-800">Days:</b> ${daysStr}</p>
+                            <p><b class="text-slate-800">Limit:</b> <= ₹${s.max_premium} | <b class="text-slate-800">SL:</b> ${s.sl_pct}%</p>
+                            <p class="flex justify-between bg-white border border-slate-100 px-2 py-1.5 rounded-md mt-1">
+                                <span><b class="text-slate-800">Time:</b> ${s.entry_time}</span>
+                                <span class="${statusColor} font-bold">${s.time_remaining}</span>
+                            </p>
+                        </div>
+                    </div>`;
+                });
+            } else {
+                html += `<p class="text-xs text-slate-500 text-center py-4 font-bold">No custom strategies added.</p>`;
             }
+            
+            if(savedCustomStrats.length < 3) {
+                html += `<button onclick="closeSavedStrategy(); openAlgoSettings();" class="w-full mt-2 bg-slate-50 hover:bg-blue-50 text-blue-600 font-bold py-3.5 rounded-xl border border-blue-200 border-dashed text-sm transition-all active:scale-95 shadow-sm">+ Add Strategy (${savedCustomStrats.length}/3)</button>`;
+            } else {
+                html += `<p class="text-center text-[10px] text-rose-500 mt-3 font-extrabold uppercase tracking-widest bg-rose-50 py-2 rounded-lg border border-rose-100">Max 3 custom limit reached.</p>`;
+            }
+
+            document.getElementById('saved-strategy-content').innerHTML = html;
         }
+
         function closeSavedStrategy() { document.getElementById('view-strategy-modal').classList.add('hidden'); }
         
         async function testAlgoExecution() {
@@ -601,12 +638,11 @@
             btn.innerHTML = '<span class="loader border-emerald-600 border-t-transparent w-3 h-3 mr-2"></span> Executing...';
             btn.disabled = true;
             
-            // Hardcoded to REAL MODE
+            // Note: This triggers the Default Strategy only for Force Execute
             const res = await fetch(`${API_BASE_URL}/algo/execute-now?mode=REAL`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
             const data = await res.json(); alert(res.ok ? "✅ " + data.message : "❌ " + (data.message || data.detail)); fetchAlgoStatus();
             
-            btn.innerText = originalHTML;
-            btn.disabled = false;
+            btn.innerText = originalHTML; btn.disabled = false;
         }
 
         // --- SYNC LOGIC ---
@@ -620,8 +656,7 @@
             const res = await fetch(`${API_BASE_URL}/market/sync-master`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
             const data = await res.json(); alert(res.ok ? "✅ " + data.message : "❌ Error syncing");
             
-            btn.innerHTML = originalHTML;
-            btn.disabled = false;
+            btn.innerHTML = originalHTML; btn.disabled = false;
         }
 
         // --- OPTION CHAIN & TRADES LOGIC ---
@@ -662,22 +697,16 @@
         
         async function executeOrder(transactionType) {
             const btn = transactionType === 'B' ? document.getElementById('buy-btn') : document.getElementById('sell-btn');
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<span class="loader loader-white"></span>';
-            btn.disabled = true;
+            const originalHTML = btn.innerHTML; btn.innerHTML = '<span class="loader loader-white"></span>'; btn.disabled = true;
 
             const payload = { exchange_segment: selectedOrder.sym.includes("SENSEX") ? "bse_fo" : "nse_fo", trading_symbol: selectedOrder.sym, transaction_type: transactionType, quantity: document.getElementById('modal-qty').value, price: document.getElementById('modal-price').value, order_type: "L", product: "NRML", token: selectedOrder.token, stoploss: document.getElementById('modal-sl').value || "0", target: document.getElementById('modal-target').value || "0" };
-            // Hardcoded to REAL MODE
             const res = await fetch(`${API_BASE_URL}/trades/place-order?mode=REAL`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }, body: JSON.stringify(payload) });
             
-            btn.innerHTML = originalHTML;
-            btn.disabled = false;
-            
+            btn.innerHTML = originalHTML; btn.disabled = false;
             if(res.ok) { closeOrderModal(); switchTab('positions'); } else alert("Order Failed");
         }
         
         async function fetchLiveTrades() {
-            // Hardcoded to REAL MODE
             const res = await fetch(`${API_BASE_URL}/trades/open-positions?mode=REAL`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
             if(res.ok) { const data = await res.json(); renderTrades(data.positions); }
         }
@@ -702,16 +731,9 @@
         
         async function triggerExitAll() { 
             if(confirm("🚨 DANGER! Square off ALL Real Positions?")) { 
-                const btn = document.getElementById('panic-btn');
-                const originalHTML = btn.innerHTML;
-                btn.innerHTML = '<span class="loader loader-white mr-2"></span> EXITING...';
-                btn.disabled = true;
-                
+                const btn = document.getElementById('panic-btn'); const originalHTML = btn.innerHTML; btn.innerHTML = '<span class="loader loader-white mr-2"></span> EXITING...'; btn.disabled = true;
                 await fetch(`${API_BASE_URL}/trades/exit-all?mode=REAL`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); 
-                fetchLiveTrades(); 
-                
-                btn.innerHTML = originalHTML;
-                btn.disabled = false;
+                fetchLiveTrades(); btn.innerHTML = originalHTML; btn.disabled = false;
             } 
         }
         
@@ -723,9 +745,7 @@
         }
         
         function connectWebSocket() {
-            const token = localStorage.getItem('saas_token'); 
-            // Hardcoded to REAL MODE
-            wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}&mode=REAL`);
+            const token = localStorage.getItem('saas_token'); wsConnection = new WebSocket(`${WS_BASE_URL}?token=${token}&mode=REAL`);
             wsConnection.onmessage = (e) => { const data = JSON.parse(e.data); if(data.positions) renderTrades(data.positions); }; wsConnection.onclose = () => setTimeout(connectWebSocket, 5000);
         }
 
@@ -734,22 +754,16 @@
         function closeKotakModal() { document.getElementById('kotak-modal').classList.add('hidden'); }
         function resetKotakProfile() { if(confirm("This will clear your saved broker details. Are you sure?")) { localStorage.setItem('saas_kotak', 'Inactive'); showDashboard(localStorage.getItem('saas_user'), 'Inactive'); openKotakModal(); } }
         async function handleKotakConnect(e) {
-            e.preventDefault(); 
-            const btn = document.getElementById('kotak-submit-btn'); btn.innerHTML = '<span class="loader loader-white mr-2"></span> Saving...'; btn.disabled = true;
-            
+            e.preventDefault(); const btn = document.getElementById('kotak-submit-btn'); btn.innerHTML = '<span class="loader loader-white mr-2"></span> Saving...'; btn.disabled = true;
             const payload = { name: document.getElementById('kotak-name').value, mobile: document.getElementById('kotak-mobile').value, ucc: document.getElementById('kotak-ucc').value, mpin: document.getElementById('kotak-mpin').value, totp: document.getElementById('kotak-full-totp').value, consumer_key: document.getElementById('kotak-consumer-key').value };
             const res = await fetch(`${API_BASE_URL}/broker/kotak-login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }, body: JSON.stringify(payload) });
             if(res.ok) { alert("Profile Saved!"); localStorage.setItem('saas_kotak', 'Active'); showDashboard(localStorage.getItem('saas_user'), 'Active'); closeKotakModal(); } else alert("Failed to connect");
-            
             btn.innerHTML = 'Connect & Save Account'; btn.disabled = false;
         }
         async function handleKotakTotpOnly(e) {
-            e.preventDefault(); 
-            const btn = document.getElementById('kotak-totp-btn'); btn.innerHTML = '<span class="loader loader-white mr-2"></span> Starting...'; btn.disabled = true;
-            
+            e.preventDefault(); const btn = document.getElementById('kotak-totp-btn'); btn.innerHTML = '<span class="loader loader-white mr-2"></span> Starting...'; btn.disabled = true;
             const res = await fetch(`${API_BASE_URL}/broker/kotak-totp-login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }, body: JSON.stringify({ totp: document.getElementById('kotak-quick-totp').value }) });
             if(res.ok) { alert("Session Started! 🟢"); closeKotakModal(); } else alert("Failed");
-            
             btn.innerHTML = 'Start Daily Session'; btn.disabled = false;
         }
     </script>

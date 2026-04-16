@@ -408,7 +408,6 @@
         let currentAtm = 0;
         let selectedOrder = {};
         
-        // Strategy Globals
         let savedDefaultActive = false;
         let savedCustomStrats = [];
         let savedPlanToday = "";
@@ -489,15 +488,29 @@
         function showDashboard(userName, kotakStatus) {
             document.getElementById('auth-section').classList.add('hidden'); document.getElementById('dashboard-section').classList.remove('hidden');
             document.getElementById('welcome-msg').innerText = `Welcome, ${userName}`;
-            document.getElementById('kotak-status').innerText = kotakStatus === 'Active' ? 'Connected 🟢' : 'Not Saved 🔴';
-            document.getElementById('kotak-status').className = kotakStatus === 'Active' ? 'text-[10px] px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md font-extrabold uppercase tracking-wider' : 'text-[10px] px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-md font-extrabold uppercase tracking-wider';
+            
+            const statusBadge = document.getElementById('kotak-status');
             const kBtn = document.getElementById('connect-kotak-btn');
-            kBtn.innerText = kotakStatus === 'Active' ? 'Start Daily Session (TOTP)' : 'Configure Kotak Neo';
-            kBtn.className = kotakStatus === 'Active' ? 'w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl text-sm font-bold shadow-md active:scale-95 transition-all' : 'w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl text-sm font-bold shadow-md active:scale-95 transition-all';
+
+            if (kotakStatus === 'Active') {
+                statusBadge.innerText = 'Connected 🟢';
+                statusBadge.className = 'text-[10px] px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md font-extrabold uppercase tracking-wider';
+                kBtn.innerText = 'Session Active (View Profile)';
+                kBtn.className = 'w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3.5 rounded-xl text-sm font-bold shadow-sm active:scale-95 transition-all';
+            } else if (kotakStatus === 'NeedsTOTP') {
+                statusBadge.innerText = 'TOTP Required 🟡';
+                statusBadge.className = 'text-[10px] px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-md font-extrabold uppercase tracking-wider';
+                kBtn.innerText = 'Start Daily Session (TOTP)';
+                kBtn.className = 'w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl text-sm font-bold shadow-md active:scale-95 transition-all animate-pulse';
+            } else {
+                statusBadge.innerText = 'Not Saved 🔴';
+                statusBadge.className = 'text-[10px] px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded-md font-extrabold uppercase tracking-wider';
+                kBtn.innerText = 'Configure Kotak Neo';
+                kBtn.className = 'w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl text-sm font-bold shadow-md active:scale-95 transition-all';
+            }
         }
         function logout() { localStorage.clear(); location.reload(); }
 
-        // --- NEW STRATEGY & ALGO LOGIC ---
         async function fetchAlgoStatus() {
             const token = localStorage.getItem('saas_token'); if(!token) return;
             const res = await fetch(`${API_BASE_URL}/algo/status`, { headers: { 'Authorization': `Bearer ${token}` }});
@@ -535,7 +548,6 @@
         }
 
         function openAlgoSettings() { 
-            // Reset form for new entry
             document.querySelectorAll('.day-cb').forEach(cb => cb.checked = false);
             document.getElementById('cfg-hour').value = ""; document.getElementById('cfg-minute').value = "";
             document.getElementById('algo-settings-modal').classList.remove('hidden'); 
@@ -638,14 +650,12 @@
             btn.innerHTML = '<span class="loader border-emerald-600 border-t-transparent w-3 h-3 mr-2"></span> Executing...';
             btn.disabled = true;
             
-            // Note: This triggers the Default Strategy only for Force Execute
             const res = await fetch(`${API_BASE_URL}/algo/execute-now?mode=REAL`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
             const data = await res.json(); alert(res.ok ? "✅ " + data.message : "❌ " + (data.message || data.detail)); fetchAlgoStatus();
             
             btn.innerText = originalHTML; btn.disabled = false;
         }
 
-        // --- SYNC LOGIC ---
         async function updateWeeklyExpiry() {
             if(!confirm("Sync latest Weekly Expiry data from Exchange?")) return;
             const btn = document.getElementById('sync-btn');
@@ -659,7 +669,6 @@
             btn.innerHTML = originalHTML; btn.disabled = false;
         }
 
-        // --- OPTION CHAIN & TRADES LOGIC ---
         async function fetchOptionChain() {
             const sym = document.getElementById('chart-index').value; const container = document.getElementById('chain-container');
             container.innerHTML = `<div class="text-center text-sm text-slate-500 py-12 font-medium bg-white rounded-xl border border-slate-200">Loading ${sym} Chain...</div>`;
@@ -749,8 +758,17 @@
             wsConnection.onmessage = (e) => { const data = JSON.parse(e.data); if(data.positions) renderTrades(data.positions); }; wsConnection.onclose = () => setTimeout(connectWebSocket, 5000);
         }
 
-        // --- KOTAK MODAL API ---
-        function openKotakModal() { document.getElementById('kotak-modal').classList.remove('hidden'); const isSaved = localStorage.getItem('saas_kotak') === 'Active'; if(isSaved) { document.getElementById('kotak-full-form').classList.add('hidden'); document.getElementById('kotak-totp-form').classList.remove('hidden'); } else { document.getElementById('kotak-full-form').classList.remove('hidden'); document.getElementById('kotak-totp-form').classList.add('hidden'); } }
+        function openKotakModal() { 
+            document.getElementById('kotak-modal').classList.remove('hidden'); 
+            const isSaved = localStorage.getItem('saas_kotak') === 'Active' || localStorage.getItem('saas_kotak') === 'NeedsTOTP'; 
+            if(isSaved) { 
+                document.getElementById('kotak-full-form').classList.add('hidden'); 
+                document.getElementById('kotak-totp-form').classList.remove('hidden'); 
+            } else { 
+                document.getElementById('kotak-full-form').classList.remove('hidden'); 
+                document.getElementById('kotak-totp-form').classList.add('hidden'); 
+            } 
+        }
         function closeKotakModal() { document.getElementById('kotak-modal').classList.add('hidden'); }
         function resetKotakProfile() { if(confirm("This will clear your saved broker details. Are you sure?")) { localStorage.setItem('saas_kotak', 'Inactive'); showDashboard(localStorage.getItem('saas_user'), 'Inactive'); openKotakModal(); } }
         async function handleKotakConnect(e) {
@@ -763,7 +781,12 @@
         async function handleKotakTotpOnly(e) {
             e.preventDefault(); const btn = document.getElementById('kotak-totp-btn'); btn.innerHTML = '<span class="loader loader-white mr-2"></span> Starting...'; btn.disabled = true;
             const res = await fetch(`${API_BASE_URL}/broker/kotak-totp-login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }, body: JSON.stringify({ totp: document.getElementById('kotak-quick-totp').value }) });
-            if(res.ok) { alert("Session Started! 🟢"); closeKotakModal(); } else alert("Failed");
+            if(res.ok) { 
+                alert("Session Started! 🟢"); 
+                localStorage.setItem('saas_kotak', 'Active');
+                showDashboard(localStorage.getItem('saas_user'), 'Active');
+                closeKotakModal(); 
+            } else alert("Failed");
             btn.innerHTML = 'Start Daily Session'; btn.disabled = false;
         }
     </script>

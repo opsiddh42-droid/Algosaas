@@ -469,14 +469,22 @@ async def automatic_algo_scheduler():
         algo_col = get_collection("algo_state")
         db_col = get_collection("real_trades")
         
-        # 🟢 1. CHECK FOR ENTRY
+        # 🟢 1. CHECK FOR ENTRY (WITH ATOMIC LOCK)
         active_users = await algo_col.find({"is_active": True, "last_executed_date": {"$ne": current_date}}).to_list(length=None)
         for user_state in active_users:
             if user_state.get("config", {}).get("entry_time", "10:00") == current_time:
+                # 🚀 ATOMIC LOCK: Prevents multiple workers from firing the same order
+                lock_result = await algo_col.update_one(
+                    {"_id": user_state["_id"], "last_executed_date": user_state.get("last_executed_date")},
+                    {"$set": {"last_executed_date": current_date}}
+                )
+                if lock_result.modified_count == 0:
+                    continue # Another worker already picked this up
+                
                 try: await core_algo_execution(user_state["user_id"], "REAL")
                 except: pass
 
-        # 🟢 2. CHECK FOR 3:15 PM AUTO EXIT & SL CANCEL
+        # 🟢 2. CHECK FOR 3:15 PM AUTO EXIT & SL CANCEL (ALREADY HAS ATOMIC LOCK)
         if current_time == "15:15":
             open_trades = await db_col.find({"status": "OPEN"}).to_list(length=None)
             for trade in open_trades:
@@ -534,11 +542,19 @@ async def telegram_intelligence_scheduler():
                 }).to_list(length=None)
                 
                 for user in active_users:
-                    # 1️⃣ TOTAL ANALYSIS
+                    # 1️⃣ TOTAL ANALYSIS (WITH ATOMIC LOCK)
                     total_conf = user.get("total_alerts", {})
                     if total_conf.get("is_active"):
                         last_total = total_conf.get("last_sent_time")
                         if not last_total or (now_dt - datetime.fromisoformat(last_total)).total_seconds() >= 15 * 60:
+                            
+                            # 🚀 ATOMIC LOCK: Prevents multiple workers from sending the same Telegram message
+                            lock = await user_col.update_one(
+                                {"_id": user["_id"], "total_alerts.last_sent_time": last_total},
+                                {"$set": {"total_alerts.last_sent_time": now_dt.isoformat()}}
+                            )
+                            if lock.modified_count == 0: continue
+                            
                             idx = total_conf.get("index", "NIFTY")
                             try:
                                 data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
@@ -558,15 +574,22 @@ async def telegram_intelligence_scheduler():
                                         f"🔴 <b>CE:</b> {data['ce1HourChange']} | 🟢 <b>PE:</b> {data['pe1HourChange']}"
                                     )
                                     await send_user_alert(user["id"], t_msg)
-                                    await user_col.update_one({"id": user["id"]}, {"$set": {"total_alerts.last_sent_time": now_dt.isoformat()}})
                             except: pass
 
-                    # 2️⃣ CUSTOM STRIKES
+                    # 2️⃣ CUSTOM STRIKES (WITH ATOMIC LOCK)
                     cust_conf = user.get("custom_alerts", {})
                     if cust_conf.get("is_active"):
                         last_cust = cust_conf.get("last_sent_time")
                         freq = max(3, cust_conf.get("frequency_minutes", 3))
                         if not last_cust or (now_dt - datetime.fromisoformat(last_cust)).total_seconds() >= freq * 60:
+                            
+                            # 🚀 ATOMIC LOCK: Prevents multiple workers from sending the same custom Telegram message
+                            lock = await user_col.update_one(
+                                {"_id": user["_id"], "custom_alerts.last_sent_time": last_cust},
+                                {"$set": {"custom_alerts.last_sent_time": now_dt.isoformat()}}
+                            )
+                            if lock.modified_count == 0: continue
+                            
                             idx = cust_conf.get("index", "NIFTY")
                             target_strikes = cust_conf.get("strikes", [])
                             try:
@@ -581,7 +604,6 @@ async def telegram_intelligence_scheduler():
                                             c_msg += f"🔴 CE: {format_oi(s_data['ce_oi'])} ({format_oi(s_data['ce_chg'])})\n"
                                             c_msg += f"🟢 PE: {format_oi(s_data['pe_oi'])} ({format_oi(s_data['pe_chg'])})\n\n"
                                     await send_user_alert(user["id"], c_msg.strip())
-                                    await user_col.update_one({"id": user["id"]}, {"$set": {"custom_alerts.last_sent_time": now_dt.isoformat()}})
                             except: pass
             except: pass
         

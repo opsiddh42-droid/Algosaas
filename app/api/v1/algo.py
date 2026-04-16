@@ -2,6 +2,7 @@ import os
 import asyncio
 import httpx
 import time
+import uuid
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -89,8 +90,7 @@ async def send_user_alert(user_id: str, message: str):
     except Exception as e: pass
 
 # --- REQUEST MODELS ---
-class AlgoConfig(BaseModel):
-    use_default: bool
+class CustomStrategyConfig(BaseModel):
     index: str
     entry_time: str
     max_premium: float
@@ -141,59 +141,114 @@ async def get_algo_status(current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_state")
     state = await algo_col.find_one({"user_id": current_user["id"]})
     
-    default_config = {"use_default": True, "index": "NIFTY", "entry_time": "10:00", "max_premium": 10.0, "sl_pct": 200.0, "active_days": []}
     if not state:
-        state = {"user_id": current_user["id"], "is_active": False, "last_executed_date": "", "config": default_config}
+        state = {"user_id": current_user["id"], "is_active": False, "last_executed_date": "", "custom_strategies": []}
         await algo_col.insert_one(state)
         
-    config = state.get("config", default_config)
-    
-    if config.get("use_default", True):
-        day = datetime.now(IST).weekday()
-        if day in [0, 1, 4]: plan = "Default: NIFTY Sell @ ₹10"
-        elif day in [2, 3]: plan = "Default: SENSEX Sell @ ₹15"
-        else: plan = "Default: Idle Today"
-    else:
-        plan = f"Custom: {config.get('index', 'NIFTY')} Sell <= ₹{config.get('max_premium', 10)}"
+    # Default Strategy Logic (Fixed Nifty @ 6 / Sensex @ 12)
+    day = datetime.now(IST).weekday()
+    if day in [0, 1, 4]: plan = "Default: NIFTY Sell <= ₹6 | SL 200%"
+    elif day in [2, 3]: plan = "Default: SENSEX Sell <= ₹12 | SL 300%"
+    else: plan = "Default: Idle Today"
+
+    now = datetime.now(IST)
+    current_date_str = now.strftime("%Y-%m-%d")
+    current_time = now.time()
+
+    # Custom Strategies Time Remaining Calculation
+    custom_strategies = state.get("custom_strategies", [])
+    for strat in custom_strategies:
+        try:
+            strat_time = datetime.strptime(strat.get("entry_time", "10:00"), "%H:%M").time()
+            
+            if strat.get("last_executed_date") == current_date_str:
+                strat["time_remaining"] = "Executed Today ✅"
+            elif day not in strat.get("active_days", []):
+                strat["time_remaining"] = "Not Active Today ⏸️"
+            elif current_time < strat_time:
+                rem = datetime.combine(now.date(), strat_time) - datetime.combine(now.date(), current_time)
+                mins = int(rem.total_seconds() // 60)
+                strat["time_remaining"] = f"In {mins} mins ⏳"
+            else:
+                strat["time_remaining"] = "Time Passed ⌛"
+        except:
+            strat["time_remaining"] = "--"
 
     return {
-        "status": "success", "is_active": state.get("is_active", False),
-        "plan_today": plan, "config": config,
-        "executed_today": state.get("last_executed_date") == datetime.now(IST).strftime("%Y-%m-%d")
+        "status": "success", 
+        "is_active": state.get("is_active", False),
+        "plan_today": plan, 
+        "custom_strategies": custom_strategies,
+        "executed_today": state.get("last_executed_date") == current_date_str
     }
 
 @router.post("/toggle")
-async def toggle_algo(current_user: dict = Depends(get_current_user)):
+async def toggle_default_algo(current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_state")
     state = await algo_col.find_one({"user_id": current_user["id"]})
     new_status = not state.get("is_active", False) if state else True
     await algo_col.update_one({"user_id": current_user["id"]}, {"$set": {"is_active": new_status}}, upsert=True)
-    return {"status": "success", "is_active": new_status, "message": "Algo Bot Turned ON!" if new_status else "Algo Bot Turned OFF."}
+    return {"status": "success", "is_active": new_status, "message": "Default Algo Turned ON!" if new_status else "Default Algo Turned OFF."}
 
-@router.post("/config")
-async def update_algo_config(config: AlgoConfig, current_user: dict = Depends(get_current_user)):
+# 🚀 NEW ROUTES FOR CUSTOM STRATEGIES (MAX 3)
+@router.post("/add-strategy")
+async def add_custom_strategy(strat: CustomStrategyConfig, current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_state")
-    await algo_col.update_one({"user_id": current_user["id"]}, {"$set": {"config": config.dict()}}, upsert=True)
-    return {"status": "success", "message": "Algo Strategy Settings Saved!"}
+    state = await algo_col.find_one({"user_id": current_user["id"]})
+    
+    custom_strats = state.get("custom_strategies", []) if state else []
+    if len(custom_strats) >= 3:
+        return {"status": "error", "message": "Max 3 custom strategies allowed. Please delete one first."}
+    
+    new_strat = strat.dict()
+    new_strat["id"] = str(uuid.uuid4())[:8]
+    new_strat["is_active"] = True
+    new_strat["last_executed_date"] = ""
+    
+    await algo_col.update_one({"user_id": current_user["id"]}, {"$push": {"custom_strategies": new_strat}}, upsert=True)
+    return {"status": "success", "message": "New Strategy Added Successfully!"}
 
-async def core_algo_execution(user_id: str, mode: str):
+@router.delete("/delete-strategy/{strat_id}")
+async def delete_custom_strategy(strat_id: str, current_user: dict = Depends(get_current_user)):
+    algo_col = get_collection("algo_state")
+    await algo_col.update_one({"user_id": current_user["id"]}, {"$pull": {"custom_strategies": {"id": strat_id}}})
+    return {"status": "success", "message": "Strategy Deleted."}
+
+@router.post("/toggle-strategy/{strat_id}")
+async def toggle_custom_strategy(strat_id: str, current_user: dict = Depends(get_current_user)):
+    algo_col = get_collection("algo_state")
+    state = await algo_col.find_one({"user_id": current_user["id"]})
+    if not state: return {"status": "error", "message": "State not found."}
+    
+    for i, s in enumerate(state.get("custom_strategies", [])):
+        if s["id"] == strat_id:
+            new_val = not s.get("is_active", True)
+            await algo_col.update_one({"user_id": current_user["id"]}, {"$set": {f"custom_strategies.{i}.is_active": new_val}})
+            return {"status": "success", "is_active": new_val, "message": "Strategy Status Updated."}
+            
+    return {"status": "error", "message": "Strategy ID not found."}
+
+async def core_algo_execution(user_id: str, mode: str, strategy: dict = None):
     now = datetime.now(IST)
     algo_col = get_collection("algo_state")
-    state = await algo_col.find_one({"user_id": user_id})
-    config = state.get("config", {"use_default": True}) if state else {"use_default": True}
     day = now.weekday()
 
-    if config.get("use_default", True):
-        if day in [0, 1, 4]:
-            index, target_premium, sl_pct = "NIFTY", 10.0, 200.0
-        elif day in [2, 3]:
-            index, target_premium, sl_pct = "SENSEX", 15.0, 200.0
+    # 🚀 STRATEGY SELECTION LOGIC
+    if strategy is None:
+        # Default Strategy Logic
+        if day in [0, 1, 4]: # Mon, Tue, Fri
+            index, target_premium, sl_pct = "NIFTY", 6.0, 200.0
+        elif day in [2, 3]: # Wed, Thu
+            index, target_premium, sl_pct = "SENSEX", 12.0, 300.0
         else:
             return {"status": "error", "message": "No default strategy planned for today."}
     else:
-        if day not in config.get("active_days", []): return {"status": "error", "message": "Custom strategy is not configured to run today."}
-        index = config.get("index", "NIFTY")
-        target_premium, sl_pct = float(config.get("max_premium", 10.0)), float(config.get("sl_pct", 200.0))
+        # Custom Strategy Logic
+        if day not in strategy.get("active_days", []): 
+            return {"status": "error", "message": "Custom strategy is not configured to run today."}
+        index = strategy.get("index", "NIFTY")
+        target_premium = float(strategy.get("max_premium", 10.0))
+        sl_pct = float(strategy.get("sl_pct", 200.0))
 
     if index == "NIFTY": qty = "65"
     elif index == "BANKNIFTY": qty = "15"
@@ -239,7 +294,6 @@ async def core_algo_execution(user_id: str, mode: str):
             raw = client.quotes(instrument_tokens=req_batch, quote_type="all")
             raw_data = raw if isinstance(raw, list) else raw.get('data', [])
             
-            # Map LTP for quick lookup
             ltp_map = {}
             for item in raw_data:
                 tk = str(item.get('exchange_token', item.get('tk')))
@@ -248,7 +302,6 @@ async def core_algo_execution(user_id: str, mode: str):
                     "oi": float(item.get('open_int', item.get('oi', 0)))
                 }
 
-            # Check prices moving outwards from ATM
             for b in batch:
                 tk = b["instrument_token"]
                 if tk in ltp_map:
@@ -261,7 +314,6 @@ async def core_algo_execution(user_id: str, mode: str):
                         elif b["type"] == "PE" and not best_pe:
                             best_pe = {"sym": b["sym"], "tk": tk, "ltp": ltp, "oi": oi}
                             
-            # 🚀 EARLY EXIT: Stop API calls if both CE & PE are found
             if best_ce and best_pe:
                 break
                 
@@ -310,16 +362,24 @@ async def core_algo_execution(user_id: str, mode: str):
         {"user_id": user_id, "status": "OPEN", "entry_time": now.strftime("%Y-%m-%d %H:%M:%S"), "is_algo": True, "legs": [{"symbol": best_pe["sym"], "token": best_pe["tk"], "transaction": "S", "qty": int(qty), "entry_price": pe_ltp, "ltp": pe_ltp, "entry_oi": best_pe.get("oi", 0), "sl": pe_sl_trigger, "status": "OPEN", "exch_seg": exch_seg}]}
     ]
     await db_col.insert_many(trade_docs)
-    await algo_col.update_one({"user_id": user_id}, {"$set": {"last_executed_date": now.strftime("%Y-%m-%d")}})
 
-    if mode == "REAL":
-        t_msg = f"🚀 <b>ALGO ORDER EXECUTED!</b>\n\n📈 <b>Index:</b> {index}\n🟢 <b>CE Leg:</b> {best_ce['sym']} @ ₹{ce_ltp}\n🔴 <b>PE Leg:</b> {best_pe['sym']} @ ₹{pe_ltp}\n📦 <b>Qty:</b> {qty}\n🛡️ <b>SL:</b> {sl_pct}%\n\n⚡ <i>Orders successfully placed!</i>"
-        asyncio.create_task(send_user_alert(user_id, t_msg))
+    t_msg = f"🚀 <b>ALGO ORDER EXECUTED!</b>\n\n📈 <b>Index:</b> {index}\n🟢 <b>CE Leg:</b> {best_ce['sym']} @ ₹{ce_ltp}\n🔴 <b>PE Leg:</b> {best_pe['sym']} @ ₹{pe_ltp}\n📦 <b>Qty:</b> {qty}\n🛡️ <b>SL:</b> {sl_pct}%\n\n⚡ <i>Mode: {mode}</i>"
+    asyncio.create_task(send_user_alert(user_id, t_msg))
     return {"status": "success", "message": f"Orders Placed: {best_ce['sym']} & {best_pe['sym']}"}
 
 @router.post("/execute-now")
-async def manual_trigger_algo(mode: str = "PAPER", current_user: dict = Depends(get_current_user)):
-    try: return await core_algo_execution(current_user["id"], mode)
+async def manual_trigger_algo(mode: str = "PAPER", strat_id: str = None, current_user: dict = Depends(get_current_user)):
+    algo_col = get_collection("algo_state")
+    state = await algo_col.find_one({"user_id": current_user["id"]})
+    strat_to_exec = None
+    
+    if strat_id and state:
+        for s in state.get("custom_strategies", []):
+            if s["id"] == strat_id:
+                strat_to_exec = s
+                break
+                
+    try: return await core_algo_execution(current_user["id"], mode, strategy=strat_to_exec)
     except Exception as e: return {"status": "error", "message": str(e)}
 
 # --- MARKET INTELLIGENCE ROUTES ---
@@ -328,41 +388,23 @@ async def toggle_total_alert(config: TotalAlertConfig, current_user: dict = Depe
     user_col = get_collection("users")
     await user_col.update_one(
         {"id": current_user["id"]}, 
-        {"$set": {"total_alerts": {
-            "is_active": config.is_active, 
-            "index": config.index, 
-            "last_sent_time": None,
-            "min_frequency": 15
-        }}},
+        {"$set": {"total_alerts": {"is_active": config.is_active, "index": config.index, "last_sent_time": None, "min_frequency": 15}}},
         upsert=True
     )
-    if config.is_active:
-        msg = f"✅ <b>Total Analysis Alert ON!</b>\nIndex: {config.index}\nFrequency: Every 15 Mins\nIncludes: All Strikes OI, 1H Change, Support & Resistance."
-        asyncio.create_task(send_user_alert(current_user["id"], msg))
-    return {"status": "success", "message": "Total Analysis Alert updated (15m Limit)."}
+    if config.is_active: asyncio.create_task(send_user_alert(current_user["id"], f"✅ Total Analysis Alert ON for {config.index}"))
+    return {"status": "success"}
 
 @router.post("/toggle-custom-alert")
 async def toggle_custom_alert(config: CustomStrikeConfig, current_user: dict = Depends(get_current_user)):
     user_col = get_collection("users")
     final_freq = max(3, config.frequency_minutes)
-    
     await user_col.update_one(
         {"id": current_user["id"]}, 
-        {"$set": {"custom_alerts": {
-            "is_active": config.is_active, 
-            "index": config.index, 
-            "strikes": config.strikes, 
-            "frequency_minutes": final_freq,
-            "last_sent_time": None
-        }}},
+        {"$set": {"custom_alerts": {"is_active": config.is_active, "index": config.index, "strikes": config.strikes, "frequency_minutes": final_freq, "last_sent_time": None}}},
         upsert=True
     )
-    if config.is_active:
-        strikes_str = ", ".join(map(str, config.strikes))
-        msg = f"✅ <b>Custom Strike Alert ON!</b>\nIndex: {config.index}\nStrikes: {strikes_str}\nFrequency: Every {final_freq} Mins."
-        asyncio.create_task(send_user_alert(current_user["id"], msg))
-    return {"status": "success", "message": f"Custom Strike Alert updated ({final_freq}m Limit)."}
-
+    if config.is_active: asyncio.create_task(send_user_alert(current_user["id"], f"✅ Custom Strike Alert ON for {config.index}"))
+    return {"status": "success"}
 
 @router.get("/market-intelligence")
 async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = Depends(get_current_user)):
@@ -373,7 +415,6 @@ async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = De
         q = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
         item = q[0] if isinstance(q, list) else q.get('data', [{}])[0]
         spot_ltp = float(item.get('ltp', 0))
-        
         if spot_ltp == 0 and symbol == "SENSEX":
             q = client.quotes(instrument_tokens=[{"instrument_token": "SENSEX", "exchange_segment": "bse_cm"}], quote_type="all")
             item = q[0] if isinstance(q, list) else q.get('data', [{}])[0]
@@ -400,7 +441,6 @@ async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = De
             if strike_map[stk].get("pe_token"): req_tokens.append({"instrument_token": strike_map[stk]["pe_token"], "exchange_segment": conf["Exchange"]})
 
         ce_tot_oi = pe_tot_oi = ce_tot_chg = pe_tot_chg = 0
-        
         for i in range(0, len(req_tokens), 50):
             batch = req_tokens[i:i+50]
             try:
@@ -420,193 +460,136 @@ async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = De
             except: pass
 
         valid_strikes = [s for s in strike_map.values() if s["ce_oi"] > 0 or s["pe_oi"] > 0]
-        
         above_atm = [s for s in valid_strikes if s["strike"] > atm]
         resistances = sorted(above_atm, key=lambda x: x["ce_oi"], reverse=True)[:3]
         resistances = sorted(resistances, key=lambda x: x["strike"]) 
-        
         below_atm = [s for s in valid_strikes if s["strike"] < atm]
         supports = sorted(below_atm, key=lambda x: x["pe_oi"], reverse=True)[:3]
         supports = sorted(supports, key=lambda x: x["strike"], reverse=True) 
 
         record_snapshot(symbol, ce_tot_oi, pe_tot_oi)
         ce_1h_chg, pe_1h_chg, mins_passed = get_1h_change(symbol, ce_tot_oi, pe_tot_oi)
-
         max_pain = calculate_max_pain(valid_strikes)
         pcr = round(pe_tot_oi / ce_tot_oi, 2) if ce_tot_oi > 0 else 0
         trend = "BULLISH 🚀" if pcr >= 1.1 else "BEARISH 🩸" if pcr <= 0.9 else "SIDEWAYS ⚖️"
         diff_oi = pe_tot_oi - ce_tot_oi
 
         return {
-            "status": "success",
-            "spot": spot_ltp,
-            "maxPain": max_pain,
-            "pcr": pcr,
-            "trend": trend,
-            "ceTotalOi": format_oi(ce_tot_oi),
-            "peTotalOi": format_oi(pe_tot_oi),
-            "ceDayChange": format_oi(ce_tot_chg),
-            "peDayChange": format_oi(pe_tot_chg),
-            "ce1HourChange": format_oi(ce_1h_chg),
-            "pe1HourChange": format_oi(pe_1h_chg),
-            "historyMins": mins_passed,
-            "difference": f"PE Dominating by {format_oi(abs(diff_oi))}" if diff_oi > 0 else f"CE Dominating by {format_oi(abs(diff_oi))}",
-            "supports": [s["strike"] for s in supports],
-            "resistances": [s["strike"] for s in resistances],
-            "raw_strikes": strike_map, 
-            "lastUpdated": datetime.now(IST).strftime("%H:%M:%S")
+            "status": "success", "spot": spot_ltp, "maxPain": max_pain, "pcr": pcr, "trend": trend,
+            "ceTotalOi": format_oi(ce_tot_oi), "peTotalOi": format_oi(pe_tot_oi),
+            "ceDayChange": format_oi(ce_tot_chg), "peDayChange": format_oi(pe_tot_chg),
+            "ce1HourChange": format_oi(ce_1h_chg), "pe1HourChange": format_oi(pe_1h_chg),
+            "historyMins": mins_passed, "difference": f"PE Dominating by {format_oi(abs(diff_oi))}" if diff_oi > 0 else f"CE Dominating by {format_oi(abs(diff_oi))}",
+            "supports": [s["strike"] for s in supports], "resistances": [s["strike"] for s in resistances],
+            "raw_strikes": strike_map, "lastUpdated": datetime.now(IST).strftime("%H:%M:%S")
         }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 
-# --- SCHEDULER ---
+# --- SCHEDULERS ---
 async def automatic_algo_scheduler():
     while True:
         now = datetime.now(IST)
         current_time = now.strftime("%H:%M")
         current_date = now.strftime("%Y-%m-%d")
-
         algo_col = get_collection("algo_state")
         db_col = get_collection("real_trades")
         
-        # 🟢 1. CHECK FOR ENTRY (WITH ATOMIC LOCK)
-        active_users = await algo_col.find({"is_active": True, "last_executed_date": {"$ne": current_date}}).to_list(length=None)
-        for user_state in active_users:
-            if user_state.get("config", {}).get("entry_time", "10:00") == current_time:
-                # 🚀 ATOMIC LOCK: Prevents multiple workers from firing the same order
-                lock_result = await algo_col.update_one(
-                    {"_id": user_state["_id"], "last_executed_date": user_state.get("last_executed_date")},
-                    {"$set": {"last_executed_date": current_date}}
-                )
-                if lock_result.modified_count == 0:
-                    continue # Another worker already picked this up
-                
-                try: await core_algo_execution(user_state["user_id"], "REAL")
-                except: pass
+        # 🟢 CHECK FOR ENTRY (BOTH DEFAULT & CUSTOM)
+        all_users = await algo_col.find({}).to_list(length=None)
+        for user_state in all_users:
+            user_id = user_state["user_id"]
+            
+            # Check Default Strategy
+            if user_state.get("is_active", False) and user_state.get("last_executed_date") != current_date:
+                if current_time == "10:00":
+                    lock = await algo_col.update_one({"_id": user_state["_id"], "last_executed_date": user_state.get("last_executed_date")}, {"$set": {"last_executed_date": current_date}})
+                    if lock.modified_count > 0:
+                        try: await core_algo_execution(user_id, "REAL", strategy=None)
+                        except: pass
+            
+            # Check Custom Strategies
+            custom_strats = user_state.get("custom_strategies", [])
+            for i, strat in enumerate(custom_strats):
+                if strat.get("is_active", True) and strat.get("last_executed_date") != current_date:
+                    if strat.get("entry_time") == current_time:
+                        lock = await algo_col.update_one({"_id": user_state["_id"], f"custom_strategies.{i}.last_executed_date": strat.get("last_executed_date")}, {"$set": {f"custom_strategies.{i}.last_executed_date": current_date}})
+                        if lock.modified_count > 0:
+                            try: await core_algo_execution(user_id, "REAL", strategy=strat)
+                            except: pass
 
-        # 🟢 2. CHECK FOR 3:15 PM AUTO EXIT & SL CANCEL (ALREADY HAS ATOMIC LOCK)
+        # 🟢 AUTO EXIT & SL CANCEL (3:15 PM)
         if current_time == "15:15":
             open_trades = await db_col.find({"status": "OPEN"}).to_list(length=None)
             for trade in open_trades:
-                lock_result = await db_col.update_one(
-                    {"_id": trade["_id"], "status": "OPEN"}, 
-                    {"$set": {"status": "PROCESSING"}} 
-                )
-                if lock_result.modified_count == 0: continue
-                
-                user_id = trade["user_id"]
+                lock = await db_col.update_one({"_id": trade["_id"], "status": "OPEN"}, {"$set": {"status": "PROCESSING"}})
+                if lock.modified_count == 0: continue
                 try:
-                    client = get_kotak_client(user_id)
-                    try:
-                        order_report = client.order_report()
-                        orders = order_report if isinstance(order_report, list) else order_report.get("data", [])
-                    except Exception: orders = []
-
+                    client = get_kotak_client(trade["user_id"])
+                    try: orders = client.order_report() if isinstance(client.order_report(), list) else client.order_report().get("data", [])
+                    except: orders = []
                     updated_legs = []
                     for leg in trade["legs"]:
                         if leg["status"] == "OPEN":
                             for ord_data in orders:
-                                status = str(ord_data.get("ordSt", "")).lower()
-                                sym = ord_data.get("trdSym", "")
-                                ord_no = ord_data.get("nOrdNo", "")
-                                if sym == leg["symbol"] and status in ["opn", "trg", "pending", "trigger pending", "open", "put", "modified"]:
-                                    try: client.cancel_order(nOrdNo=str(ord_no))
-                                    except Exception as ce: pass
-
+                                if ord_data.get("trdSym") == leg["symbol"] and str(ord_data.get("ordSt")).lower() in ["opn", "trg", "pending", "trigger pending", "open", "put", "modified"]:
+                                    try: client.cancel_order(nOrdNo=str(ord_data.get("nOrdNo")))
+                                    except: pass
                             exit_trans = "B" if leg["transaction"] == "S" else "S"
                             try:
                                 client.place_order(exchange_segment=leg.get("exch_seg", "nse_fo"), product="NRML", price="0", order_type="MKT", quantity=str(leg["qty"]), validity="DAY", trading_symbol=leg["symbol"], transaction_type=exit_trans, amo="NO")
                                 leg["status"] = "CLOSED"
-                            except Exception as e: pass
-                                
+                            except: pass
                         updated_legs.append(leg)
-                    
                     await db_col.update_one({"_id": trade["_id"]}, {"$set": {"status": "CLOSED", "legs": updated_legs}})
-                    asyncio.create_task(send_user_alert(user_id, f"⏰ <b>AUTO EXIT @ 15:15</b>\n\n✅ Pending SL Canceled\n✅ Positions squared off automatically."))
-                except Exception as e: pass
+                    asyncio.create_task(send_user_alert(trade["user_id"], f"⏰ <b>AUTO EXIT @ 15:15</b>\n\n✅ Positions squared off."))
+                except: pass
 
-        sleep_sec = 61 - datetime.now(IST).second
-        await asyncio.sleep(sleep_sec)
+        await asyncio.sleep(61 - datetime.now(IST).second)
 
 async def telegram_intelligence_scheduler():
     while True:
         now_dt = datetime.now(IST)
         now_time = now_dt.time()
-        
-        # Run only during market hours
         if datetime.strptime("09:15", "%H:%M").time() <= now_time <= datetime.strptime("15:30", "%H:%M").time():
             try:
                 user_col = get_collection("users")
-                active_users = await user_col.find({
-                    "$or": [{"total_alerts.is_active": True}, {"custom_alerts.is_active": True}]
-                }).to_list(length=None)
-                
+                active_users = await user_col.find({"$or": [{"total_alerts.is_active": True}, {"custom_alerts.is_active": True}]}).to_list(length=None)
                 for user in active_users:
-                    # 1️⃣ TOTAL ANALYSIS (WITH ATOMIC LOCK)
                     total_conf = user.get("total_alerts", {})
-                    if total_conf.get("is_active"):
+                    if total_conf.get("is_active") == True:
                         last_total = total_conf.get("last_sent_time")
                         if not last_total or (now_dt - datetime.fromisoformat(last_total)).total_seconds() >= 15 * 60:
-                            
-                            # 🚀 ATOMIC LOCK: Prevents multiple workers from sending the same Telegram message
-                            lock = await user_col.update_one(
-                                {"_id": user["_id"], "total_alerts.last_sent_time": last_total},
-                                {"$set": {"total_alerts.last_sent_time": now_dt.isoformat()}}
-                            )
-                            if lock.modified_count == 0: continue
-                            
-                            idx = total_conf.get("index", "NIFTY")
-                            try:
-                                data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
-                                if data.get("status") == "success":
-                                    s, r = data["supports"], data["resistances"]
-                                    t_msg = (
-                                        f"📊 <b>{idx} MASTER PREDICTION</b>\n\n"
-                                        f"🎯 <b>Spot:</b> {data['spot']}\n"
-                                        f"📈 <b>PCR:</b> {data['pcr']} ({data['trend']})\n\n"
-                                        f"🛡️ <b>KEY LEVELS</b>\n"
-                                        f"🔺 <b>R3:</b> {r[2] if len(r)>2 else '-'} | <b>R2:</b> {r[1] if len(r)>1 else '-'} | <b>R1:</b> {r[0] if len(r)>0 else '-'}\n"
-                                        f"🔻 <b>S1:</b> {s[0] if len(s)>0 else '-'} | <b>S2:</b> {s[1] if len(s)>1 else '-'} | <b>S3:</b> {s[2] if len(s)>2 else '-'}\n\n"
-                                        f"📅 <b>DAY OI (All Strikes)</b>\n"
-                                        f"🔴 <b>CE:</b> {data['ceTotalOi']} | 🟢 <b>PE:</b> {data['peTotalOi']}\n"
-                                        f"⚔️ <b>Status:</b> {data['difference']}\n\n"
-                                        f"⏳ <b>LAST {data['historyMins']} MINS CHANGE</b>\n"
-                                        f"🔴 <b>CE:</b> {data['ce1HourChange']} | 🟢 <b>PE:</b> {data['pe1HourChange']}"
-                                    )
-                                    await send_user_alert(user["id"], t_msg)
-                            except: pass
-
-                    # 2️⃣ CUSTOM STRIKES (WITH ATOMIC LOCK)
+                            lock = await user_col.update_one({"_id": user["_id"], "total_alerts.last_sent_time": last_total}, {"$set": {"total_alerts.last_sent_time": now_dt.isoformat()}})
+                            if lock.modified_count > 0:
+                                idx = total_conf.get("index", "NIFTY")
+                                try:
+                                    data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
+                                    if data.get("status") == "success":
+                                        s, r = data["supports"], data["resistances"]
+                                        t_msg = f"📊 <b>{idx} MASTER PREDICTION</b>\n\n🎯 <b>Spot:</b> {data['spot']}\n⚖️ <b>Max Pain:</b> {data['maxPain']}\n📈 <b>PCR:</b> {data['pcr']} ({data['trend']})\n\n🛡️ <b>KEY LEVELS</b>\n🔺 <b>R3:</b> {r[2] if len(r)>2 else '-'} | <b>R2:</b> {r[1] if len(r)>1 else '-'} | <b>R1:</b> {r[0] if len(r)>0 else '-'}\n🔻 <b>S1:</b> {s[0] if len(s)>0 else '-'} | <b>S2:</b> {s[1] if len(s)>1 else '-'} | <b>S3:</b> {s[2] if len(s)>2 else '-'}\n\n📅 <b>DAY OPEN INTEREST (All Strikes)</b>\n🔴 <b>CE OI:</b> {data['ceTotalOi']} (Added: {data['ceDayChange']})\n🟢 <b>PE OI:</b> {data['peTotalOi']} (Added: {data['peDayChange']})\n⚔️ <b>Status:</b> {data['difference']}\n\n⏳ <b>LAST {data['historyMins']} MINS ACTIVITY</b>\n🔴 <b>CE Change:</b> {data['ce1HourChange']}\n🟢 <b>PE Change:</b> {data['pe1HourChange']}"
+                                        await send_user_alert(user["id"], t_msg)
+                                except: pass
                     cust_conf = user.get("custom_alerts", {})
-                    if cust_conf.get("is_active"):
+                    if cust_conf.get("is_active") == True:
                         last_cust = cust_conf.get("last_sent_time")
                         freq = max(3, cust_conf.get("frequency_minutes", 3))
                         if not last_cust or (now_dt - datetime.fromisoformat(last_cust)).total_seconds() >= freq * 60:
-                            
-                            # 🚀 ATOMIC LOCK: Prevents multiple workers from sending the same custom Telegram message
-                            lock = await user_col.update_one(
-                                {"_id": user["_id"], "custom_alerts.last_sent_time": last_cust},
-                                {"$set": {"custom_alerts.last_sent_time": now_dt.isoformat()}}
-                            )
-                            if lock.modified_count == 0: continue
-                            
-                            idx = cust_conf.get("index", "NIFTY")
-                            target_strikes = cust_conf.get("strikes", [])
-                            try:
-                                data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
-                                if data.get("status") == "success":
-                                    raw_map = data["raw_strikes"]
-                                    c_msg = f"🎯 <b>{idx} CUSTOM STRIKES</b>\n⏱️ <b>Spot:</b> {data['spot']}\n\n"
-                                    for stk in target_strikes:
-                                        if stk in raw_map:
-                                            s_data = raw_map[stk]
-                                            c_msg += f"⚡ <b>Strike: {stk}</b>\n"
-                                            c_msg += f"🔴 CE: {format_oi(s_data['ce_oi'])} ({format_oi(s_data['ce_chg'])})\n"
-                                            c_msg += f"🟢 PE: {format_oi(s_data['pe_oi'])} ({format_oi(s_data['pe_chg'])})\n\n"
-                                    await send_user_alert(user["id"], c_msg.strip())
-                            except: pass
+                            lock = await user_col.update_one({"_id": user["_id"], "custom_alerts.last_sent_time": last_cust}, {"$set": {"custom_alerts.last_sent_time": now_dt.isoformat()}})
+                            if lock.modified_count > 0:
+                                idx = cust_conf.get("index", "NIFTY")
+                                target_strikes = cust_conf.get("strikes", [])
+                                try:
+                                    data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
+                                    if data.get("status") == "success":
+                                        raw_map = data["raw_strikes"]
+                                        c_msg = f"🎯 <b>{idx} CUSTOM STRIKES UPDATE</b>\n⏱️ <b>Spot:</b> {data['spot']}\n\n"
+                                        for stk in target_strikes:
+                                            if stk in raw_map:
+                                                s_data = raw_map[stk]
+                                                c_msg += f"⚡ <b>Strike: {stk}</b>\n🔴 CE OI: {format_oi(s_data['ce_oi'])} (Chg: {format_oi(s_data['ce_chg'])})\n🟢 PE OI: {format_oi(s_data['pe_oi'])} (Chg: {format_oi(s_data['pe_chg'])})\n\n"
+                                        await send_user_alert(user["id"], c_msg.strip())
+                                except: pass
             except: pass
-        
         await asyncio.sleep(60)
 
 @router.on_event("startup")

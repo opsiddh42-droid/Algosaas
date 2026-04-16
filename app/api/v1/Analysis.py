@@ -38,14 +38,10 @@ def record_snapshot(index: str, ce_tot: float, pe_tot: float):
 def get_1h_change(index: str, current_ce_tot: float, current_pe_tot: float):
     if not GLOBAL_SNAPSHOTS[index]: return 0, 0, 0
     target_time = datetime.now(IST) - timedelta(hours=1)
-    # Find the snapshot closest to 1 hour ago
     closest = min(GLOBAL_SNAPSHOTS[index], key=lambda x: abs((x["time"] - target_time).total_seconds()))
-    
-    # If the closest snapshot is too recent (e.g., bot just started), use it, but indicate the actual minutes
     ce_diff = current_ce_tot - closest["ce_tot"]
     pe_diff = current_pe_tot - closest["pe_tot"]
     mins_passed = int((datetime.now(IST) - closest["time"]).total_seconds() / 60)
-    
     return ce_diff, pe_diff, mins_passed
 
 def get_kotak_client(user_id: str):
@@ -103,7 +99,7 @@ class CustomStrikeConfig(BaseModel):
     is_active: bool
     index: str
     strikes: List[int] = Field(..., max_items=5)
-    frequency_minutes: int # Allowed: 3, 5, 15, 30, 60
+    frequency_minutes: int 
 
 # --- API ENDPOINTS ---
 @router.post("/toggle-total-alert")
@@ -115,7 +111,7 @@ async def toggle_total_alert(config: TotalAlertConfig, current_user: dict = Depe
             "is_active": config.is_active, 
             "index": config.index, 
             "last_sent_time": None,
-            "min_frequency": 15 # 🚀 STRICT 15 MINS FOR TOTAL
+            "min_frequency": 15 
         }}},
         upsert=True
     )
@@ -128,7 +124,6 @@ async def toggle_total_alert(config: TotalAlertConfig, current_user: dict = Depe
 async def toggle_custom_alert(config: CustomStrikeConfig, current_user: dict = Depends(get_current_user)):
     user_col = get_collection("users")
     
-    # 🚀 ENFORCE MINIMUM 3 MINUTES LIMIT
     final_freq = max(3, config.frequency_minutes)
     
     await user_col.update_one(
@@ -204,18 +199,16 @@ async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = De
                             pe_tot_oi += oi; pe_tot_chg += oi_chg
             except: pass
 
-        # 🟢 Support & Resistance Logic 🟢
         valid_strikes = [s for s in strike_map.values() if s["ce_oi"] > 0 or s["pe_oi"] > 0]
         
         above_atm = [s for s in valid_strikes if s["strike"] > atm]
         resistances = sorted(above_atm, key=lambda x: x["ce_oi"], reverse=True)[:3]
-        resistances = sorted(resistances, key=lambda x: x["strike"]) # R1, R2, R3 (Ascending)
+        resistances = sorted(resistances, key=lambda x: x["strike"]) 
         
         below_atm = [s for s in valid_strikes if s["strike"] < atm]
         supports = sorted(below_atm, key=lambda x: x["pe_oi"], reverse=True)[:3]
-        supports = sorted(supports, key=lambda x: x["strike"], reverse=True) # S1, S2, S3 (Descending)
+        supports = sorted(supports, key=lambda x: x["strike"], reverse=True) 
 
-        # Record snapshot & get 1-Hour change
         record_snapshot(symbol, ce_tot_oi, pe_tot_oi)
         ce_1h_chg, pe_1h_chg, mins_passed = get_1h_change(symbol, ce_tot_oi, pe_tot_oi)
 
@@ -240,7 +233,7 @@ async def get_market_intelligence(symbol: str = "NIFTY", current_user: dict = De
             "difference": f"PE Dominating by {format_oi(abs(diff_oi))}" if diff_oi > 0 else f"CE Dominating by {format_oi(abs(diff_oi))}",
             "supports": [s["strike"] for s in supports],
             "resistances": [s["strike"] for s in resistances],
-            "raw_strikes": strike_map, # Hidden backend data for custom alerts
+            "raw_strikes": strike_map, 
             "lastUpdated": datetime.now(IST).strftime("%H:%M:%S")
         }
     except Exception as e:
@@ -257,7 +250,7 @@ async def telegram_intelligence_scheduler():
             try:
                 user_col = get_collection("users")
                 
-                # Fetch all users that have either total or custom alerts active
+                # Sirf wahi users laao jinke dono mein se koi ek alert active ho
                 active_users = await user_col.find({
                     "$or": [
                         {"total_alerts.is_active": True},
@@ -266,9 +259,10 @@ async def telegram_intelligence_scheduler():
                 }).to_list(length=None)
                 
                 for user in active_users:
-                    # 1️⃣ TOTAL ANALYSIS ALERT (15 Mins Fixed)
+                    # 1️⃣ TOTAL ANALYSIS ALERT
                     total_conf = user.get("total_alerts", {})
-                    if total_conf.get("is_active"):
+                    # Double check ki sach mein active hai na
+                    if total_conf.get("is_active") == True:
                         last_total = total_conf.get("last_sent_time")
                         should_send = False
                         
@@ -276,17 +270,28 @@ async def telegram_intelligence_scheduler():
                             should_send = True
                         else:
                             last_total_dt = datetime.fromisoformat(last_total)
-                            if (now_dt - last_total_dt).total_seconds() >= 15 * 60: # 🚀 STRICT 15 MINS
+                            if (now_dt - last_total_dt).total_seconds() >= 15 * 60:
                                 should_send = True
                                 
                         if should_send:
+                            # 🚀 ATOMIC LOCK: Fix for Double Messages & Off-state messages
+                            lock_query = {
+                                "_id": user["_id"],
+                                "total_alerts.is_active": True,  # Ensures it hasn't been turned off
+                                "total_alerts.last_sent_time": last_total
+                            }
+                            lock_update = {"$set": {"total_alerts.last_sent_time": now_dt.isoformat()}}
+                            
+                            lock_result = await user_col.update_one(lock_query, lock_update)
+                            if lock_result.modified_count == 0:
+                                continue # Lock failed, matlab dusre worker ne le liya ya user ne OFF kar diya
+                            
                             idx = total_conf.get("index", "NIFTY")
                             try:
                                 data = await get_market_intelligence(symbol=idx, current_user={"id": user["id"]})
                                 if data.get("status") == "success":
                                     s = data["supports"]
                                     r = data["resistances"]
-                                    
                                     t_msg = (
                                         f"📊 <b>{idx} MASTER PREDICTION</b>\n\n"
                                         f"🎯 <b>Spot:</b> {data['spot']}\n"
@@ -304,14 +309,13 @@ async def telegram_intelligence_scheduler():
                                         f"🟢 <b>PE Change:</b> {data['pe1HourChange']}"
                                     )
                                     await send_user_alert(user["id"], t_msg)
-                                    await user_col.update_one({"id": user["id"]}, {"$set": {"total_alerts.last_sent_time": now_dt.isoformat()}})
                             except Exception as e: print(f"Total Alert Error: {e}")
 
-                    # 2️⃣ CUSTOM STRIKE ALERT (User Configured Frequency, Min 3 Mins)
+                    # 2️⃣ CUSTOM STRIKE ALERT
                     cust_conf = user.get("custom_alerts", {})
-                    if cust_conf.get("is_active"):
+                    if cust_conf.get("is_active") == True:
                         last_cust = cust_conf.get("last_sent_time")
-                        freq = max(3, cust_conf.get("frequency_minutes", 3)) # 🚀 STRICT MINIMUM 3 MINS
+                        freq = max(3, cust_conf.get("frequency_minutes", 3))
                         should_send = False
                         
                         if not last_cust:
@@ -322,6 +326,18 @@ async def telegram_intelligence_scheduler():
                                 should_send = True
                                 
                         if should_send:
+                            # 🚀 ATOMIC LOCK
+                            lock_query = {
+                                "_id": user["_id"],
+                                "custom_alerts.is_active": True,
+                                "custom_alerts.last_sent_time": last_cust
+                            }
+                            lock_update = {"$set": {"custom_alerts.last_sent_time": now_dt.isoformat()}}
+                            
+                            lock_result = await user_col.update_one(lock_query, lock_update)
+                            if lock_result.modified_count == 0:
+                                continue 
+                            
                             idx = cust_conf.get("index", "NIFTY")
                             target_strikes = cust_conf.get("strikes", [])
                             try:
@@ -338,7 +354,6 @@ async def telegram_intelligence_scheduler():
                                             c_msg += f"🟢 PE OI: {format_oi(s_data['pe_oi'])} (Chg: {format_oi(s_data['pe_chg'])})\n\n"
                                             
                                     await send_user_alert(user["id"], c_msg.strip())
-                                    await user_col.update_one({"id": user["id"]}, {"$set": {"custom_alerts.last_sent_time": now_dt.isoformat()}})
                             except Exception as e: print(f"Custom Alert Error: {e}")
                             
             except Exception as e:

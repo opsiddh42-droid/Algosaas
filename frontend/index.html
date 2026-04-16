@@ -158,7 +158,10 @@
                         <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-emerald-100 rounded-full blur-3xl opacity-50"></div>
                         
                         <div class="relative z-10">
-                            <h3 class="text-slate-500 text-[11px] font-bold tracking-[0.15em] uppercase mb-3">Live P&L (Real)</h3>
+                            <div class="flex justify-center items-center gap-2 mb-3">
+                                <h3 class="text-slate-500 text-[11px] font-bold tracking-[0.15em] uppercase">Live P&L (Real)</h3>
+                                <button onclick="fetchLiveTrades(true)" id="pnl-refresh-btn" class="text-slate-400 hover:text-blue-600 bg-white/50 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm active:scale-90 transition-all font-bold">↻</button>
+                            </div>
                             <div id="live-pnl" class="text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight transition-colors duration-300 drop-shadow-sm">+ ₹0.00</div>
                         </div>
                     </div>
@@ -334,9 +337,15 @@
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1">Stoploss (%)</label>
-                    <input type="number" id="cfg-sl" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-bold focus:border-rose-500 focus:ring-2 focus:ring-rose-100 outline-none" placeholder="e.g. 200">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1">Stoploss (%)</label>
+                        <input type="number" id="cfg-sl" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-bold focus:border-rose-500 focus:ring-2 focus:ring-rose-100 outline-none" placeholder="e.g. 200">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1">Lots</label>
+                        <input type="number" id="cfg-lots" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-bold focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" placeholder="e.g. 1" value="1" min="1">
+                    </div>
                 </div>
             </div>
 
@@ -417,7 +426,13 @@
             if(token) {
                 showDashboard(localStorage.getItem('saas_user'), localStorage.getItem('saas_kotak'));
                 fetchAlgoStatus();
+                fetchLiveTrades(); // 🚀 Fetch immediately on load
                 connectWebSocket();
+                
+                // 🚀 15-Minute Auto-Refresh for P&L
+                setInterval(() => {
+                    fetchLiveTrades();
+                }, 15 * 60 * 1000); 
             }
         };
 
@@ -466,7 +481,7 @@
                 const data = await res.json();
                 if(res.ok) {
                     localStorage.setItem('saas_token', data.access_token); localStorage.setItem('saas_user', data.user_name || "Trader"); localStorage.setItem('saas_kotak', data.kotak_status || "Inactive");
-                    showDashboard(data.user_name, data.kotak_status); fetchAlgoStatus(); connectWebSocket();
+                    showDashboard(data.user_name, data.kotak_status); fetchAlgoStatus(); connectWebSocket(); fetchLiveTrades();
                 } else alert("Login Failed: " + (data.detail || "Error"));
             } catch (err) { alert("Network Error"); }
             btn.innerHTML = 'Secure Login';
@@ -549,7 +564,9 @@
 
         function openAlgoSettings() { 
             document.querySelectorAll('.day-cb').forEach(cb => cb.checked = false);
-            document.getElementById('cfg-hour').value = ""; document.getElementById('cfg-minute').value = "";
+            document.getElementById('cfg-hour').value = ""; 
+            document.getElementById('cfg-minute').value = "";
+            document.getElementById('cfg-lots').value = "1"; // 🚀 Reset lots
             document.getElementById('algo-settings-modal').classList.remove('hidden'); 
         }
         function closeAlgoSettings() { document.getElementById('algo-settings-modal').classList.add('hidden'); }
@@ -564,10 +581,14 @@
             if(days.length === 0) { alert("Select at least 1 day."); btn.innerHTML = originalHTML; btn.disabled = false; return; }
             if(!document.getElementById('cfg-hour').value || !document.getElementById('cfg-minute').value) { alert("Enter Valid Time"); btn.innerHTML = originalHTML; btn.disabled = false; return; }
 
+            // 🚀 Default Lot Logic implemented
+            const lotsVal = parseInt(document.getElementById('cfg-lots').value);
+
             const payload = {
                 index: document.getElementById('cfg-index').value,
                 max_premium: parseFloat(document.getElementById('cfg-premium').value || 10), 
                 sl_pct: parseFloat(document.getElementById('cfg-sl').value || 200),
+                lots: isNaN(lotsVal) || lotsVal < 1 ? 1 : lotsVal,
                 entry_time: `${document.getElementById('cfg-hour').value.padStart(2, '0')}:${document.getElementById('cfg-minute').value.padStart(2, '0')}`,
                 active_days: days
             };
@@ -621,7 +642,7 @@
                         </div>
                         <div class="text-[11px] text-slate-600 space-y-1.5 font-medium">
                             <p><b class="text-slate-800">Days:</b> ${daysStr}</p>
-                            <p><b class="text-slate-800">Limit:</b> <= ₹${s.max_premium} | <b class="text-slate-800">SL:</b> ${s.sl_pct}%</p>
+                            <p><b class="text-slate-800">Limit:</b> <= ₹${s.max_premium} | <b class="text-slate-800">SL:</b> ${s.sl_pct}% | <b class="text-slate-800">Lots:</b> ${s.lots || 1}</p>
                             <p class="flex justify-between bg-white border border-slate-100 px-2 py-1.5 rounded-md mt-1">
                                 <span><b class="text-slate-800">Time:</b> ${s.entry_time}</span>
                                 <span class="${statusColor} font-bold">${s.time_remaining}</span>
@@ -715,9 +736,20 @@
             if(res.ok) { closeOrderModal(); switchTab('positions'); } else alert("Order Failed");
         }
         
-        async function fetchLiveTrades() {
+        // 🚀 Updated P&L Refresh Logic
+        async function fetchLiveTrades(manual = false) {
+            if(manual) {
+                const btn = document.getElementById('pnl-refresh-btn');
+                if(btn) btn.classList.add('animate-spin');
+            }
+            
             const res = await fetch(`${API_BASE_URL}/trades/open-positions?mode=REAL`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
             if(res.ok) { const data = await res.json(); renderTrades(data.positions); }
+            
+            if(manual) {
+                const btn = document.getElementById('pnl-refresh-btn');
+                if(btn) btn.classList.remove('animate-spin');
+            }
         }
         
         function renderTrades(positions) {

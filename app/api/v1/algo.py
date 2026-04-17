@@ -530,59 +530,85 @@ async def automatic_algo_scheduler():
                             try: await core_algo_execution(user_id, "REAL", strategy=strat)
                             except: pass
 
-        # 🚀 3:15 PM AUTO EXIT RE-WRITE WITH SAFE QTY CHECK
+        # 🚀 3:15 PM AUTO EXIT RE-WRITE WITH LIVE KOTAK POSITIONS (NO DB LAFDA)
         if current_time == "15:15":
-            open_trades = await db_col.find({"status": "OPEN"}).to_list(length=None)
-            for trade in open_trades:
-                lock = await db_col.update_one({"_id": trade["_id"], "status": "OPEN"}, {"$set": {"status": "PROCESSING"}})
-                if lock.modified_count == 0: continue
+            all_users = await algo_col.find({"is_active": True}).to_list(length=None)
+            
+            for user_state in all_users:
+                user_id = user_state["user_id"]
                 try:
-                    client = get_kotak_client(trade["user_id"])
+                    client = get_kotak_client(user_id)
                     
+                    # STEP 1: Pehle saare pending Stoploss/Limit orders cancel karo
                     try: 
                         order_report = client.order_report()
                         orders = order_report if isinstance(order_report, list) else order_report.get("data", [])
-                    except: 
-                        orders = []
+                        for ord_data in orders:
+                            trd_sym = str(ord_data.get("trdSym", "")).upper()
+                            
+                            # 🚀 SAFETY FILTER: Sirf Index Options ke orders cancel honge
+                            is_index_option = any(idx in trd_sym for idx in ["NIFTY", "SENSEX", "BANKNIFTY"]) and ("CE" in trd_sym or "PE" in trd_sym)
+                            if not is_index_option:
+                                continue
+                                
+                            status = str(ord_data.get("ordSt", "")).lower()
+                            if status in ["opn", "trg", "pending", "trigger pending", "open", "put", "modified"]:
+                                try: client.cancel_order(nOrdNo=str(ord_data.get("nOrdNo")))
+                                except: pass
+                    except: pass
                         
-                    updated_legs = []
-                    for leg in trade["legs"]:
-                        if leg["status"] == "OPEN":
-                            net_fld_qty = 0
+                    # STEP 2: Live Positions uthao aur MKT Exit maaro
+                    try:
+                        pos_response = client.positions()
+                        if isinstance(pos_response, dict) and "data" in pos_response:
+                            pos_data = pos_response["data"]
+                        elif isinstance(pos_response, list):
+                            pos_data = pos_response
+                        else:
+                            pos_data = []
                             
-                            for ord_data in orders:
-                                if ord_data.get("trdSym") == leg["symbol"]:
-                                    status = str(ord_data.get("ordSt", "")).lower()
-                                    
-                                    if status in ["opn", "trg", "pending", "trigger pending", "open", "put", "modified"]:
-                                        try: client.cancel_order(nOrdNo=str(ord_data.get("nOrdNo")))
-                                        except: pass
-                                    
-                                    if status in ["traded", "complete", "completed", "filled"]:
-                                        trans = str(ord_data.get("trnsTp", ord_data.get("trnTsp", "B"))).upper()
-                                        qty_filled = int(ord_data.get("fldQty", ord_data.get("qty", 0)))
-                                        if trans == "B": net_fld_qty += qty_filled
-                                        else: net_fld_qty -= qty_filled
+                        exited_something = False
+                        
+                        for p in pos_data:
+                            trd_sym = str(p.get("trdSym", "")).upper()
                             
-                            remaining_qty = abs(net_fld_qty)
+                            # 🚀 SAFETY FILTER: Sirf Index Options ki positions square off hongi!
+                            is_index_option = any(idx in trd_sym for idx in ["NIFTY", "SENSEX", "BANKNIFTY"]) and ("CE" in trd_sym or "PE" in trd_sym)
+                            if not is_index_option:
+                                continue  # Equity, ETF, ya kisi aur stock ko skip kar do
+                                
+                            # String to safe integer conversion
+                            buy_qty = int(float(p.get("flBuyQty", p.get("buyQty", 0))))
+                            sell_qty = int(float(p.get("flSellQty", p.get("sellQty", 0))))
+                            net_qty = buy_qty - sell_qty
                             
-                            if remaining_qty > 0:
-                                exit_trans = "B" if leg["transaction"] == "S" else "S"
+                            # Agar position bachi hai (SL hit nahi hua) tabhi Exit maarega
+                            if net_qty != 0:
+                                exit_trans = "S" if net_qty > 0 else "B" 
+                                abs_qty = abs(net_qty)
+                                
                                 try:
                                     client.place_order(
-                                        exchange_segment=leg.get("exch_seg", "nse_fo"), 
-                                        product="NRML", price="0", order_type="MKT", 
-                                        quantity=str(remaining_qty), 
-                                        validity="DAY", trading_symbol=leg["symbol"], 
-                                        transaction_type=exit_trans, amo="NO"
+                                        exchange_segment=p.get("exSeg", "nse_fo"), product="NRML", price="0", 
+                                        order_type="MKT", quantity=str(abs_qty), validity="DAY", 
+                                        trading_symbol=p.get("trdSym"), transaction_type=exit_trans, amo="NO"
                                     )
-                                except: pass
-                                
-                            leg["status"] = "CLOSED"
-                        updated_legs.append(leg)
+                                    exited_something = True
+                                except Exception as e:
+                                    print(f"Auto Exit Error on {p.get('trdSym')}: {e}")
+                                    
+                        if exited_something:
+                            asyncio.create_task(send_user_alert(user_id, f"⏰ <b>AUTO EXIT @ 15:15</b>\n\n✅ Live options squared off successfully."))
+                            
+                    except Exception as e:
+                        pass
                         
-                    await db_col.update_one({"_id": trade["_id"]}, {"$set": {"status": "CLOSED", "legs": updated_legs}})
-                    asyncio.create_task(send_user_alert(trade["user_id"], f"⏰ <b>AUTO EXIT @ 15:15</b>\n\n✅ Safe exit executed. Existing SL handled."))
+                    # STEP 3: Last mein sirf history clear karne ke liye DB update
+                    await db_col.update_many(
+                        {"user_id": user_id, "status": "OPEN"}, 
+                        {"$set": {"status": "CLOSED"}}
+                    )
+                    
                 except: pass
 
         await asyncio.sleep(61 - datetime.now(IST).second)

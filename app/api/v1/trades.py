@@ -33,7 +33,7 @@ async def place_order(order: OrderModel, mode: str = "REAL", current_user: dict 
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
             
-    # Save Trade for UI
+    # Save Trade for UI (History ke liye DB mein save rakha hai)
     from datetime import datetime
     db_col = get_collection("real_trades")
     leg = {
@@ -47,85 +47,115 @@ async def place_order(order: OrderModel, mode: str = "REAL", current_user: dict 
     })
     return {"status": "success", "message": "Order Executed"}
 
-# 🟢 CUSTOM P&L & POSITIONS LOGIC 🟢
+# 🟢 DIRECT KOTAK LIVE P&L & POSITIONS LOGIC (NO MONGODB LAFDA) 🟢
 @router.get("/open-positions")
 async def get_open_positions(mode: str = "REAL", current_user: dict = Depends(get_current_user)):
-    db_col = get_collection("real_trades")
-    open_trades = await db_col.find({"user_id": current_user["id"], "status": "OPEN"}).to_list(length=None)
-    
-    if not open_trades:
-        return {"status": "success", "positions": []}
-
     try:
         client = get_kotak_client(current_user["id"])
     except:
-        client = None
+        return {"status": "success", "positions": []}
 
-    formatted_positions = []
-    
-    for trade in open_trades:
-        for leg in trade.get("legs", []):
-            if leg.get("status") != "OPEN": continue
+    try:
+        # Seedha Broker se positions mango
+        pos_response = client.positions()
+        pos_data = pos_response if isinstance(pos_response, list) else pos_response.get("data", [])
+        
+        active_positions = []
+        tokens_to_fetch = []
+        
+        for p in pos_data:
+            # Kotak gives buy and sell quantities, calculate Net Qty
+            buy_qty = int(p.get("flBuyQty", p.get("buyQty", 0)))
+            sell_qty = int(p.get("flSellQty", p.get("sellQty", 0)))
+            net_qty = buy_qty - sell_qty
             
-            ltp = leg.get("entry_price", 0)
-            
-            # 🟢 Fetch Live LTP if Kotak Client is active 🟢
-            if client:
-                try:
-                    q = client.quotes(instrument_tokens=[{"instrument_token": str(leg["token"]), "exchange_segment": leg.get("exch_seg", "nse_fo")}], quote_type="all")
-                    raw = q if isinstance(q, list) else q.get('data', [])
-                    live_data = next((item for item in raw if str(item.get('exchange_token') or item.get('tk')) == str(leg["token"])), None)
-                    if live_data and float(live_data.get('ltp', 0)) > 0:
-                        ltp = float(live_data.get('ltp'))
-                except:
-                    pass
-            
-            # P&L Calculation: If we SOLD, profit is when LTP goes down. If BOUGHT, profit is when LTP goes up.
-            entry_price = float(leg.get("entry_price", 0))
-            qty = int(leg.get("qty", 0))
-            if leg.get("transaction") == "S":
-                mtm = (entry_price - ltp) * qty
-            else:
-                mtm = (ltp - entry_price) * qty
+            # Agar Net Qty Zero nahi hai, toh position sach mein open hai
+            if net_qty != 0:
+                tok = str(p.get("tok", ""))
+                ex_seg = p.get("exSeg", "nse_fo")
+                if tok: 
+                    tokens_to_fetch.append({"instrument_token": tok, "exchange_segment": ex_seg})
                 
-            formatted_positions.append({
-                "id": str(trade["_id"]),
-                "symbol": leg["symbol"],
-                "transaction": leg["transaction"],
-                "qty": qty,
-                "entry_price": entry_price,
-                "ltp": round(ltp, 2),
-                "mtm": round(mtm, 2)
-            })
+                buy_amt = float(p.get("buyAmt", 0))
+                sell_amt = float(p.get("sellAmt", 0))
+                
+                transaction = "B" if net_qty > 0 else "S"
+                abs_qty = abs(net_qty)
+                
+                if net_qty > 0:
+                    avg_price = buy_amt / buy_qty if buy_qty > 0 else 0
+                else:
+                    avg_price = sell_amt / sell_qty if sell_qty > 0 else 0
+                    
+                active_positions.append({
+                    "id": tok, # UI mein square off ke liye token bheja hai
+                    "symbol": p.get("trdSym"),
+                    "token": tok,
+                    "transaction": transaction,
+                    "qty": abs_qty,
+                    "entry_price": avg_price,
+                    "ltp": avg_price, 
+                    "mtm": 0.0,
+                    "exch_seg": ex_seg
+                })
 
-    return {"status": "success", "positions": formatted_positions}
+        # Fetch Live LTP for calculating MTM
+        if tokens_to_fetch and active_positions:
+            try:
+                q = client.quotes(instrument_tokens=tokens_to_fetch, quote_type="ltp")
+                raw_quotes = q if isinstance(q, list) else q.get('data', [])
+                ltp_dict = {str(item.get('exchange_token', item.get('tk'))): float(item.get('ltp', 0)) for item in raw_quotes}
+                
+                for pos in active_positions:
+                    ltp = ltp_dict.get(pos["token"], pos["entry_price"])
+                    pos["ltp"] = round(ltp, 2)
+                    
+                    if pos["transaction"] == "B":
+                        pos["mtm"] = round((ltp - pos["entry_price"]) * pos["qty"], 2)
+                    else:
+                        pos["mtm"] = round((pos["entry_price"] - ltp) * pos["qty"], 2)
+            except Exception as e:
+                pass
+                
+        return {"status": "success", "positions": active_positions}
+    except Exception as e:
+        return {"status": "success", "positions": []}
 
-# 🟢 PANIC EXIT ALL (WITH "BUY" FIRST RULE PRIORITY) 🟢
+
+# 🟢 PANIC EXIT ALL (KOTAK LIVE FETCH PRIORITY) 🟢
 @router.post("/exit-all")
 async def exit_all_positions(mode: str = "REAL", current_user: dict = Depends(get_current_user)):
-    db_col = get_collection("real_trades")
-    open_trades = await db_col.find({"user_id": current_user["id"], "status": "OPEN"}).to_list(length=None)
+    try:
+        client = get_kotak_client(current_user["id"])
+    except:
+        return {"status": "error", "message": "Kotak not connected."}
+        
+    pos_response = client.positions()
+    pos_data = pos_response if isinstance(pos_response, list) else pos_response.get("data", [])
     
-    if not open_trades:
+    open_legs = []
+    for p in pos_data:
+        buy_qty = int(p.get("flBuyQty", p.get("buyQty", 0)))
+        sell_qty = int(p.get("flSellQty", p.get("sellQty", 0)))
+        net_qty = buy_qty - sell_qty
+        
+        if net_qty != 0:
+            open_legs.append({
+                "symbol": p.get("trdSym"),
+                "qty": abs(net_qty),
+                "transaction": "B" if net_qty > 0 else "S",
+                "exch_seg": p.get("exSeg", "nse_fo")
+            })
+
+    if not open_legs:
         return {"status": "success", "message": "No open positions to exit."}
 
-    client = get_kotak_client(current_user["id"])
-    
-    all_open_legs = []
-    for trade in open_trades:
-        for leg in trade.get("legs", []):
-            if leg.get("status") == "OPEN":
-                all_open_legs.append({"trade_id": trade["_id"], "leg": leg})
-
     # 🚨 RULE ENFORCEMENT: Place exit order for 'Buy' positions before 'Sell' positions
-    # If the original leg was "B" (Buy), we must exit it first.
-    all_open_legs.sort(key=lambda x: 0 if x["leg"].get("transaction") == "B" else 1)
+    open_legs.sort(key=lambda x: 0 if x["transaction"] == "B" else 1)
 
-    for item in all_open_legs:
-        trade_id = item["trade_id"]
-        leg = item["leg"]
-        
-        exit_trans = "B" if leg.get("transaction") == "S" else "S"
+    for leg in open_legs:
+        # Reverse the transaction to square off
+        exit_trans = "S" if leg["transaction"] == "B" else "B" 
         
         try:
             client.place_order(
@@ -136,7 +166,8 @@ async def exit_all_positions(mode: str = "REAL", current_user: dict = Depends(ge
         except Exception as e:
             print(f"Panic Exit Error on {leg['symbol']}: {e}")
             
-    # Mark all trades as CLOSED in DB
+    # Mark all trades as CLOSED in DB just for cleanup
+    db_col = get_collection("real_trades")
     await db_col.update_many(
         {"user_id": current_user["id"], "status": "OPEN"}, 
         {"$set": {"status": "CLOSED"}}
@@ -145,33 +176,45 @@ async def exit_all_positions(mode: str = "REAL", current_user: dict = Depends(ge
     return {"status": "success", "message": "All positions squared off successfully."}
 
 class CloseTradeRequest(BaseModel):
-    trade_id: str
+    trade_id: str # Ab yeh token aayega frontend se
     mode: str = "REAL"
 
+# 🟢 SINGLE CLOSE POSITION (KOTAK LIVE) 🟢
 @router.post("/close-position")
 async def close_single_position(req: CloseTradeRequest, current_user: dict = Depends(get_current_user)):
-    db_col = get_collection("real_trades")
-    trade = await db_col.find_one({"_id": ObjectId(req.trade_id), "user_id": current_user["id"]})
-    
-    if not trade or trade["status"] != "OPEN":
-        raise HTTPException(status_code=400, detail="Trade not found or already closed.")
+    try:
+        client = get_kotak_client(current_user["id"])
+    except:
+        raise HTTPException(status_code=400, detail="Kotak not connected.")
         
-    client = get_kotak_client(current_user["id"])
+    pos_response = client.positions()
+    pos_data = pos_response if isinstance(pos_response, list) else pos_response.get("data", [])
     
-    updated_legs = []
-    for leg in trade.get("legs", []):
-        if leg["status"] == "OPEN":
-            exit_trans = "B" if leg["transaction"] == "S" else "S"
-            try:
-                client.place_order(
-                    exchange_segment=leg.get("exch_seg", "nse_fo"), product="NRML", price="0", 
-                    order_type="MKT", quantity=str(leg["qty"]), validity="DAY", 
-                    trading_symbol=leg["symbol"], transaction_type=exit_trans, amo="NO"
-                )
-                leg["status"] = "CLOSED"
-            except Exception as e:
-                pass
-        updated_legs.append(leg)
+    for p in pos_data:
+        tok = str(p.get("tok", ""))
+        # Check if this is the token we want to close
+        if tok == req.trade_id:
+            buy_qty = int(p.get("flBuyQty", p.get("buyQty", 0)))
+            sell_qty = int(p.get("flSellQty", p.get("sellQty", 0)))
+            net_qty = buy_qty - sell_qty
+            
+            if net_qty != 0:
+                exit_trans = "S" if net_qty > 0 else "B"
+                try:
+                    client.place_order(
+                        exchange_segment=p.get("exSeg", "nse_fo"), product="NRML", price="0", 
+                        order_type="MKT", quantity=str(abs(net_qty)), validity="DAY", 
+                        trading_symbol=p.get("trdSym"), transaction_type=exit_trans, amo="NO"
+                    )
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+            break
 
-    await db_col.update_one({"_id": ObjectId(req.trade_id)}, {"$set": {"status": "CLOSED", "legs": updated_legs}})
+    # Clean DB for this specific token so it doesn't mess up history
+    db_col = get_collection("real_trades")
+    await db_col.update_many(
+        {"user_id": current_user["id"], "legs.token": req.trade_id}, 
+        {"$set": {"status": "CLOSED", "legs.$[].status": "CLOSED"}}
+    )
+    
     return {"status": "success"}

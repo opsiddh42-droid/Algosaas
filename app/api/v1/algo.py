@@ -96,7 +96,7 @@ class CustomStrategyConfig(BaseModel):
     max_premium: float
     sl_pct: float
     active_days: List[int]
-    lots: Optional[int] = 1  # 🚀 ADDED LOTS FIELD
+    lots: Optional[int] = 1 
 
 class TotalAlertConfig(BaseModel):
     is_active: bool
@@ -146,7 +146,6 @@ async def get_algo_status(current_user: dict = Depends(get_current_user)):
         state = {"user_id": current_user["id"], "is_active": False, "default_active": True, "last_executed_date": "", "custom_strategies": []}
         await algo_col.insert_one(state)
         
-    # Default Strategy Logic (Fixed Nifty @ 6 / Sensex @ 12)
     day = datetime.now(IST).weekday()
     if day in [0, 1, 4]: plan = "Default: NIFTY Sell <= ₹6 | SL 200%"
     elif day in [2, 3]: plan = "Default: SENSEX Sell <= ₹12 | SL 300%"
@@ -156,12 +155,10 @@ async def get_algo_status(current_user: dict = Depends(get_current_user)):
     current_date_str = now.strftime("%Y-%m-%d")
     current_time = now.time()
 
-    # Custom Strategies Time Remaining Calculation
     custom_strategies = state.get("custom_strategies", [])
     for strat in custom_strategies:
         try:
             strat_time = datetime.strptime(strat.get("entry_time", "10:00"), "%H:%M").time()
-            
             if strat.get("last_executed_date") == current_date_str:
                 strat["time_remaining"] = "Executed Today ✅"
             elif day not in strat.get("active_days", []):
@@ -218,7 +215,6 @@ async def add_custom_strategy(strat: CustomStrategyConfig, current_user: dict = 
     new_strat["is_active"] = True
     new_strat["last_executed_date"] = ""
     
-    # User agar khali chhod de toh 1 Lot set karo
     if not new_strat.get("lots") or new_strat.get("lots") <= 0:
         new_strat["lots"] = 1
     
@@ -250,7 +246,6 @@ async def core_algo_execution(user_id: str, mode: str, strategy: dict = None):
     algo_col = get_collection("algo_state")
     day = now.weekday()
 
-    # 🚀 STRATEGY SELECTION LOGIC
     if strategy is None:
         if day in [0, 1, 4]: 
             index, target_premium, sl_pct = "NIFTY", 6.0, 200.0
@@ -268,7 +263,6 @@ async def core_algo_execution(user_id: str, mode: str, strategy: dict = None):
         lots = int(strategy.get("lots") or 1)
         if lots < 1: lots = 1
 
-    # 🚀 INDEX LOT SIZES AS REQUESTED
     if index == "NIFTY": lot_size = 65
     elif index == "BANKNIFTY": lot_size = 30
     elif index == "SENSEX": lot_size = 20
@@ -348,7 +342,6 @@ async def core_algo_execution(user_id: str, mode: str, strategy: dict = None):
                 if not resp:
                     raise Exception(f"{order_name} failed: Empty response from Kotak API.")
                 
-                # 🚀 STRICT REJECTION FIX
                 if isinstance(resp, dict):
                     if resp.get("stat") == "Not_Ok" or resp.get("stat") == "Rejected":
                         err_msg = resp.get("errMsg", resp.get("message", "Order rejected by broker."))
@@ -374,10 +367,8 @@ async def core_algo_execution(user_id: str, mode: str, strategy: dict = None):
             await asyncio.gather(*sl_tasks)
 
         except Exception as e: 
-            # 🚀 Error aane par code yahin se wapas mud jayega, database mein entry HOGI HI NAHI
             return {"status": "error", "message": f"Kotak Trade Failed: {str(e)}"}
             
-    # Sirf successfully lagne par DB mein jayega
     db_col = get_collection("real_trades")
     trade_docs = [
         {"user_id": user_id, "status": "OPEN", "entry_time": now.strftime("%Y-%m-%d %H:%M:%S"), "is_algo": True, "legs": [{"symbol": best_ce["sym"], "token": best_ce["tk"], "transaction": "S", "qty": int(qty), "entry_price": ce_ltp, "ltp": ce_ltp, "entry_oi": best_ce.get("oi", 0), "sl": ce_sl_trigger, "status": "OPEN", "exch_seg": exch_seg}]},
@@ -539,6 +530,7 @@ async def automatic_algo_scheduler():
                             try: await core_algo_execution(user_id, "REAL", strategy=strat)
                             except: pass
 
+        # 🚀 3:15 PM AUTO EXIT RE-WRITE WITH SAFE QTY CHECK
         if current_time == "15:15":
             open_trades = await db_col.find({"status": "OPEN"}).to_list(length=None)
             for trade in open_trades:
@@ -546,23 +538,51 @@ async def automatic_algo_scheduler():
                 if lock.modified_count == 0: continue
                 try:
                     client = get_kotak_client(trade["user_id"])
-                    try: orders = client.order_report() if isinstance(client.order_report(), list) else client.order_report().get("data", [])
-                    except: orders = []
+                    
+                    try: 
+                        order_report = client.order_report()
+                        orders = order_report if isinstance(order_report, list) else order_report.get("data", [])
+                    except: 
+                        orders = []
+                        
                     updated_legs = []
                     for leg in trade["legs"]:
                         if leg["status"] == "OPEN":
+                            net_fld_qty = 0
+                            
                             for ord_data in orders:
-                                if ord_data.get("trdSym") == leg["symbol"] and str(ord_data.get("ordSt")).lower() in ["opn", "trg", "pending", "trigger pending", "open", "put", "modified"]:
-                                    try: client.cancel_order(nOrdNo=str(ord_data.get("nOrdNo")))
-                                    except: pass
-                            exit_trans = "B" if leg["transaction"] == "S" else "S"
-                            try:
-                                client.place_order(exchange_segment=leg.get("exch_seg", "nse_fo"), product="NRML", price="0", order_type="MKT", quantity=str(leg["qty"]), validity="DAY", trading_symbol=leg["symbol"], transaction_type=exit_trans, amo="NO")
-                                leg["status"] = "CLOSED"
-                            except: pass
+                                if ord_data.get("trdSym") == leg["symbol"]:
+                                    status = str(ord_data.get("ordSt", "")).lower()
+                                    
+                                    if status in ["opn", "trg", "pending", "trigger pending", "open", "put", "modified"]:
+                                        try: client.cancel_order(nOrdNo=str(ord_data.get("nOrdNo")))
+                                        except: pass
+                                    
+                                    if status in ["traded", "complete", "completed", "filled"]:
+                                        trans = str(ord_data.get("trnsTp", ord_data.get("trnTsp", "B"))).upper()
+                                        qty_filled = int(ord_data.get("fldQty", ord_data.get("qty", 0)))
+                                        if trans == "B": net_fld_qty += qty_filled
+                                        else: net_fld_qty -= qty_filled
+                            
+                            remaining_qty = abs(net_fld_qty)
+                            
+                            if remaining_qty > 0:
+                                exit_trans = "B" if leg["transaction"] == "S" else "S"
+                                try:
+                                    client.place_order(
+                                        exchange_segment=leg.get("exch_seg", "nse_fo"), 
+                                        product="NRML", price="0", order_type="MKT", 
+                                        quantity=str(remaining_qty), 
+                                        validity="DAY", trading_symbol=leg["symbol"], 
+                                        transaction_type=exit_trans, amo="NO"
+                                    )
+                                except: pass
+                                
+                            leg["status"] = "CLOSED"
                         updated_legs.append(leg)
+                        
                     await db_col.update_one({"_id": trade["_id"]}, {"$set": {"status": "CLOSED", "legs": updated_legs}})
-                    asyncio.create_task(send_user_alert(trade["user_id"], f"⏰ <b>AUTO EXIT @ 15:15</b>\n\n✅ Positions squared off."))
+                    asyncio.create_task(send_user_alert(trade["user_id"], f"⏰ <b>AUTO EXIT @ 15:15</b>\n\n✅ Safe exit executed. Existing SL handled."))
                 except: pass
 
         await asyncio.sleep(61 - datetime.now(IST).second)

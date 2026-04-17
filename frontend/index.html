@@ -176,7 +176,7 @@
                             <p id="algo-plan" class="text-[13px] text-blue-600 font-bold mt-1.5">Loading Plan...</p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer mt-1">
-                            <input type="checkbox" id="algo-toggle" class="sr-only peer" onchange="toggleDefaultAlgo()">
+                            <input type="checkbox" id="algo-toggle" class="sr-only peer" onchange="toggleMasterAlgo()">
                             <div class="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-500 shadow-inner"></div>
                         </label>
                     </div>
@@ -426,10 +426,9 @@
             if(token) {
                 showDashboard(localStorage.getItem('saas_user'), localStorage.getItem('saas_kotak'));
                 fetchAlgoStatus();
-                fetchLiveTrades(); // 🚀 Fetch immediately on load
+                fetchLiveTrades(); 
                 connectWebSocket();
                 
-                // 🚀 15-Minute Auto-Refresh for P&L
                 setInterval(() => {
                     fetchLiveTrades();
                 }, 15 * 60 * 1000); 
@@ -531,24 +530,30 @@
             const res = await fetch(`${API_BASE_URL}/algo/status`, { headers: { 'Authorization': `Bearer ${token}` }});
             const data = await res.json();
             if(res.ok) {
-                savedDefaultActive = data.is_active;
+                let masterActive = data.is_active;
+                savedDefaultActive = data.default_active;
                 savedCustomStrats = data.custom_strategies || [];
                 savedPlanToday = data.plan_today;
                 
-                document.getElementById('algo-toggle').checked = savedDefaultActive;
+                document.getElementById('algo-toggle').checked = masterActive;
                 document.getElementById('algo-plan').innerText = `Plan: ${savedPlanToday}`;
                 
                 let activeCount = (savedDefaultActive ? 1 : 0) + savedCustomStrats.filter(s => s.is_active).length;
-                document.getElementById('algo-status-text').innerHTML = activeCount > 0 ? `🟢 ${activeCount} Active Strats` : "⚪ Offline";
+                document.getElementById('algo-status-text').innerHTML = (masterActive && activeCount > 0) ? `🟢 ${activeCount} Active Strats` : "⚪ Offline";
                 
-                if(activeCount > 0) document.getElementById('test-algo-btn').classList.remove('hidden'); 
+                if(masterActive && activeCount > 0) document.getElementById('test-algo-btn').classList.remove('hidden'); 
                 else document.getElementById('test-algo-btn').classList.add('hidden');
             }
         }
 
-        async function toggleDefaultAlgo() { 
-            const res = await fetch(`${API_BASE_URL}/algo/toggle`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); 
-            if(res.ok) { fetchAlgoStatus(); if(document.getElementById('view-strategy-modal').classList.contains('hidden') === false) viewSavedStrategy(); } 
+        async function toggleMasterAlgo() { 
+            const res = await fetch(`${API_BASE_URL}/algo/toggle-master`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); 
+            if(res.ok) { fetchAlgoStatus(); } 
+        }
+
+        async function toggleDefaultStrategyOnly() { 
+            const res = await fetch(`${API_BASE_URL}/algo/toggle-default`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); 
+            if(res.ok) { fetchAlgoStatus().then(() => viewSavedStrategy()); } 
         }
 
         async function toggleCustomStrategy(id) {
@@ -566,7 +571,7 @@
             document.querySelectorAll('.day-cb').forEach(cb => cb.checked = false);
             document.getElementById('cfg-hour').value = ""; 
             document.getElementById('cfg-minute').value = "";
-            document.getElementById('cfg-lots').value = "1"; // 🚀 Reset lots
+            document.getElementById('cfg-lots').value = "1"; 
             document.getElementById('algo-settings-modal').classList.remove('hidden'); 
         }
         function closeAlgoSettings() { document.getElementById('algo-settings-modal').classList.add('hidden'); }
@@ -581,7 +586,6 @@
             if(days.length === 0) { alert("Select at least 1 day."); btn.innerHTML = originalHTML; btn.disabled = false; return; }
             if(!document.getElementById('cfg-hour').value || !document.getElementById('cfg-minute').value) { alert("Enter Valid Time"); btn.innerHTML = originalHTML; btn.disabled = false; return; }
 
-            // 🚀 Default Lot Logic implemented
             const lotsVal = parseInt(document.getElementById('cfg-lots').value);
 
             const payload = {
@@ -610,7 +614,7 @@
                 <div class="flex justify-between items-center mb-2.5">
                     <h4 class="font-extrabold text-blue-700 text-sm flex items-center gap-1.5">🟢 Default Strategy</h4>
                     <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" class="sr-only peer" ${savedDefaultActive ? 'checked' : ''} onchange="toggleDefaultAlgo()">
+                        <input type="checkbox" class="sr-only peer" ${savedDefaultActive ? 'checked' : ''} onchange="toggleDefaultStrategyOnly()">
                         <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
                     </label>
                 </div>
@@ -736,7 +740,6 @@
             if(res.ok) { closeOrderModal(); switchTab('positions'); } else alert("Order Failed");
         }
         
-        // 🚀 Updated P&L Refresh Logic
         async function fetchLiveTrades(manual = false) {
             if(manual) {
                 const btn = document.getElementById('pnl-refresh-btn');
@@ -744,7 +747,10 @@
             }
             
             const res = await fetch(`${API_BASE_URL}/trades/open-positions?mode=REAL`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
-            if(res.ok) { const data = await res.json(); renderTrades(data.positions); }
+            if(res.ok) { 
+                const data = await res.json(); 
+                renderTrades(data.positions); 
+            }
             
             if(manual) {
                 const btn = document.getElementById('pnl-refresh-btn');
@@ -754,20 +760,59 @@
         
         function renderTrades(positions) {
             const container = document.getElementById('trades-container');
-            if(!positions || positions.length===0) { container.innerHTML = '<div class="text-center text-sm text-slate-500 py-12 bg-white rounded-xl border border-slate-200 font-medium">No active positions</div>'; document.getElementById('live-pnl').innerText='+ ₹0.00'; return; }
-            container.innerHTML = ''; let totalMtm = 0;
+            if(!positions || positions.length === 0) { 
+                container.innerHTML = '<div class="text-center text-sm text-slate-500 py-12 bg-white rounded-xl border border-slate-200 font-medium">No active positions</div>'; 
+                document.getElementById('live-pnl').innerText='+ ₹0.00'; 
+                return; 
+            }
+            
+            container.innerHTML = ''; 
+            let totalMtm = 0;
+            
             positions.forEach(pos => {
-                const pnl = pos.mtm || 0; totalMtm += pnl; const pnlColor = pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'; const posColor = pos.transaction === 'B' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200';
-                container.innerHTML += `
-                <div class="bg-white p-4.5 rounded-[1.25rem] flex justify-between shadow-sm mb-3 border border-slate-200">
-                    <div>
-                        <div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-extrabold border ${posColor} px-2 py-0.5 rounded shadow-sm">${pos.transaction}</span><span class="text-[15px] font-black text-slate-800 tracking-tight">${pos.symbol}</span><span class="text-[10px] text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Qty: ${pos.qty}</span></div>
-                        <div class="text-[12px] text-slate-500 font-medium">Avg: ₹${(pos.entry_price||0).toFixed(2)} | <span class="${pnlColor} font-bold">LTP: ₹${(pos.ltp||pos.entry_price||0).toFixed(2)}</span></div>
-                    </div>
-                    <div class="text-right flex flex-col justify-between items-end"><span class="text-lg font-black ${pnlColor}">₹${Math.abs(pnl).toFixed(2)}</span><button onclick="squareOff('${pos.id}')" class="mt-2 text-[10px] bg-white text-rose-600 border border-rose-200 px-3 py-1.5 hover:bg-rose-50 transition rounded-lg font-bold shadow-sm active:scale-90">SQUARE OFF</button></div>
-                </div>`;
+                if (pos.legs && Array.isArray(pos.legs)) {
+                    pos.legs.forEach(leg => {
+                        if (leg.status !== "OPEN") return; 
+                        
+                        let mtm = 0;
+                        if(leg.transaction === "S" || leg.transaction === "Sell") {
+                            mtm = (leg.entry_price - leg.ltp) * leg.qty;
+                        } else {
+                            mtm = (leg.ltp - leg.entry_price) * leg.qty;
+                        }
+                        
+                        totalMtm += mtm; 
+                        const pnlColor = mtm >= 0 ? 'text-emerald-500' : 'text-rose-500'; 
+                        const posColor = leg.transaction === 'B' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200';
+                        
+                        container.innerHTML += `
+                        <div class="bg-white p-4.5 rounded-[1.25rem] flex justify-between shadow-sm mb-3 border border-slate-200">
+                            <div>
+                                <div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-extrabold border ${posColor} px-2 py-0.5 rounded shadow-sm">${leg.transaction}</span><span class="text-[15px] font-black text-slate-800 tracking-tight">${leg.symbol}</span><span class="text-[10px] text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Qty: ${leg.qty}</span></div>
+                                <div class="text-[12px] text-slate-500 font-medium">Avg: ₹${(leg.entry_price||0).toFixed(2)} | <span class="${pnlColor} font-bold">LTP: ₹${(leg.ltp||leg.entry_price||0).toFixed(2)}</span></div>
+                            </div>
+                            <div class="text-right flex flex-col justify-between items-end"><span class="text-lg font-black ${pnlColor}">₹${Math.abs(mtm).toFixed(2)}</span><button onclick="squareOff('${pos._id || pos.id}')" class="mt-2 text-[10px] bg-white text-rose-600 border border-rose-200 px-3 py-1.5 hover:bg-rose-50 transition rounded-lg font-bold shadow-sm active:scale-90">SQUARE OFF</button></div>
+                        </div>`;
+                    });
+                } else {
+                    const pnl = pos.mtm || 0; 
+                    totalMtm += pnl; 
+                    const pnlColor = pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'; 
+                    const posColor = pos.transaction === 'B' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200';
+                    
+                    container.innerHTML += `
+                    <div class="bg-white p-4.5 rounded-[1.25rem] flex justify-between shadow-sm mb-3 border border-slate-200">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2"><span class="text-[9px] font-extrabold border ${posColor} px-2 py-0.5 rounded shadow-sm">${pos.transaction}</span><span class="text-[15px] font-black text-slate-800 tracking-tight">${pos.symbol}</span><span class="text-[10px] text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Qty: ${pos.qty}</span></div>
+                            <div class="text-[12px] text-slate-500 font-medium">Avg: ₹${(pos.entry_price||0).toFixed(2)} | <span class="${pnlColor} font-bold">LTP: ₹${(pos.ltp||pos.entry_price||0).toFixed(2)}</span></div>
+                        </div>
+                        <div class="text-right flex flex-col justify-between items-end"><span class="text-lg font-black ${pnlColor}">₹${Math.abs(pnl).toFixed(2)}</span><button onclick="squareOff('${pos.id}')" class="mt-2 text-[10px] bg-white text-rose-600 border border-rose-200 px-3 py-1.5 hover:bg-rose-50 transition rounded-lg font-bold shadow-sm active:scale-90">SQUARE OFF</button></div>
+                    </div>`;
+                }
             });
-            document.getElementById('live-pnl').innerText = `${totalMtm >= 0 ? '+' : '-'} ₹${Math.abs(totalMtm).toFixed(2)}`; document.getElementById('live-pnl').className = `text-5xl md:text-6xl font-extrabold tracking-tight transition-colors duration-300 drop-shadow-sm ${totalMtm >= 0 ? 'text-emerald-500' : 'text-rose-500'}`;
+            
+            document.getElementById('live-pnl').innerText = `${totalMtm >= 0 ? '+' : '-'} ₹${Math.abs(totalMtm).toFixed(2)}`; 
+            document.getElementById('live-pnl').className = `text-5xl md:text-6xl font-extrabold tracking-tight transition-colors duration-300 drop-shadow-sm ${totalMtm >= 0 ? 'text-emerald-500' : 'text-rose-500'}`;
         }
         
         async function triggerExitAll() { 

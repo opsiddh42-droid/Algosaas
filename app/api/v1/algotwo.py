@@ -248,30 +248,40 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
 
         if mode == "REAL":
             try:
-                # 🚀 STRICT KOTAK VALIDATION 🚀
+                uniq = str(int(time.time()))[-6:]
+                
+                # 🚀 STRICT ERROR CHECKING 🚀
                 def fire_order(order_name, **kwargs):
-                    resp = client.place_order(**kwargs)
-                    if not resp:
-                        raise Exception(f"{order_name} Error: Empty response from Kotak.")
-                    if isinstance(resp, dict):
-                        stat = resp.get("stat", "")
-                        if stat in ["Not_Ok", "Rejected"]:
-                            raise Exception(f"{order_name} Rejected: {resp.get('errMsg', resp.get('message', 'Unknown Error'))}")
-                        
-                        nOrdNo = str(resp.get("nOrdNo", resp.get("data", {}).get("nOrdNo", "")))
-                        if not nOrdNo and stat != "Ok":
-                            raise Exception(f"{order_name} Error: No Order ID returned.")
-                    return resp
+                    try:
+                        resp = client.place_order(**kwargs)
+                        if not resp:
+                            raise Exception("Empty response from Broker API.")
+                        if isinstance(resp, dict):
+                            stat = str(resp.get("stat", "")).lower()
+                            if stat in ["not_ok", "rejected", "error"]:
+                                raise Exception(resp.get('errMsg', resp.get('message', str(resp))))
+                            
+                            nOrdNo = str(resp.get("nOrdNo", resp.get("data", {}).get("nOrdNo", "")))
+                            if not nOrdNo and stat != "ok":
+                                raise Exception("Order accepted by app but no Order ID generated.")
+                        return resp
+                    except Exception as ex:
+                        raise Exception(f"{order_name} Error: {str(ex)}")
 
                 if hedge_leg:
-                    h_prc = str(round_to_tick(hedge_leg["ltp"] + 1.0)) 
-                    await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=h_prc, order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO")
-                    await asyncio.sleep(0.5) 
+                    h_prc = round_to_tick(hedge_leg["ltp"] + 1.0) 
+                    try:
+                        # 🚀 KOTAK DECIMAL FORMAT FIX: {h_prc:.2f} 🚀
+                        await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=f"{h_prc:.2f}", order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
+                        await asyncio.sleep(0.5) 
+                    except Exception as he: pass 
 
-                e_prc = str(round_to_tick(max(entry_ltp - 3.0, 0.5))) 
-                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=e_prc, order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO")
+                e_prc = round_to_tick(max(entry_ltp - 3.0, 0.5)) 
+                # 🚀 KOTAK DECIMAL FORMAT FIX: {e_prc:.2f} 🚀
+                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=f"{e_prc:.2f}", order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
                 
-                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", trigger_price=str(sl_trigger))
+                # 🚀 KOTAK DECIMAL FORMAT FIX FOR SL 🚀
+                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=f"{sl_limit:.2f}", order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=f"{sl_trigger:.2f}")
                 
                 if sl_resp and isinstance(sl_resp, dict):
                     sl_ord_no = sl_resp.get("nOrdNo", sl_resp.get("data", {}).get("nOrdNo", ""))
@@ -297,6 +307,8 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
         try: await lock_col.delete_one({"_id": lock_key})
         except: pass
 
+
+# 🚀 STRICT HTTP 400 EXCEPTION HANDLER FOR UI 🚀
 @router.post("/execute-now")
 async def manual_trigger_algotwo(mode: str = "REAL", strat_id: str = None, current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_two_state")
@@ -305,8 +317,17 @@ async def manual_trigger_algotwo(mode: str = "REAL", strat_id: str = None, curre
     if strat_id and state:
         for s in state.get("custom_strategies", []):
             if s["id"] == strat_id: strat_to_exec = s; break
-    if not strat_to_exec: return {"status": "error", "message": "Strategy not found."}
-    return await core_algotwo_execution(current_user["id"], mode, strategy=strat_to_exec)
+            
+    if not strat_to_exec: 
+        raise HTTPException(status_code=400, detail="Strategy not found.")
+        
+    result = await core_algotwo_execution(current_user["id"], mode, strategy=strat_to_exec)
+    
+    # AGAR KOTAK NE REJECT KIYA, TOH UI KO BATAO KI ERROR HAI
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message", "Execution Failed"))
+        
+    return result
 
 async def algotwo_ws_trade_monitor():
     last_pos_sync = 0
@@ -381,10 +402,10 @@ async def algotwo_ws_trade_monitor():
                                     try: client.cancel_order(nOrdNo=sl_ord)
                                     except: pass
                                 
-                                safe_exit_price = str(round_to_tick(ltp + 5.0))
+                                safe_exit_price = round_to_tick(ltp + 5.0)
                                 
                                 try:
-                                    client.place_order(exchange_segment=leg["exch_seg"], product="NRML", price=safe_exit_price, order_type="L", quantity=str(qty), validity="DAY", trading_symbol=leg["symbol"], transaction_type="B", amo="NO")
+                                    client.place_order(exchange_segment=leg["exch_seg"], product="NRML", price=f"{safe_exit_price:.2f}", order_type="L", quantity=str(qty), validity="DAY", trading_symbol=leg["symbol"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
                                     await db_col.update_one({"_id": t["_id"]}, {"$set": {"status": "CLOSED"}})
                                     asyncio.create_task(send_user_alert(user_id, f"🎯 <b>TARGET ACHIEVED!</b>\n\n✅ Booked profit for {leg['symbol']} at ₹{ltp}"))
                                 except: pass

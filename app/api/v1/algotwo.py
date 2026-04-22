@@ -31,24 +31,20 @@ LIVE_LTP_MEMORY = {}
 SUBSCRIBED_TOKENS = set()
 
 def kotak_on_message(message):
-    """Kotak WebSocket Live Tick Handler"""
     try:
         if isinstance(message, list):
             for item in message:
                 tk = str(item.get("tk", ""))
                 ltp = float(item.get("ltp", item.get("lastPrice", 0)))
-                if tk and ltp > 0:
-                    LIVE_LTP_MEMORY[tk] = ltp
+                if tk and ltp > 0: LIVE_LTP_MEMORY[tk] = ltp
         elif isinstance(message, dict):
             tk = str(message.get("tk", ""))
             ltp = float(message.get("ltp", message.get("lastPrice", 0)))
-            if tk and ltp > 0:
-                LIVE_LTP_MEMORY[tk] = ltp
+            if tk and ltp > 0: LIVE_LTP_MEMORY[tk] = ltp
     except: pass
 
 def get_kotak_client(user_id: str):
-    if user_id not in KOTAK_SESSIONS:
-        raise HTTPException(status_code=401, detail="Kotak Session OFF!")
+    if user_id not in KOTAK_SESSIONS: raise HTTPException(status_code=401, detail="Kotak Session OFF!")
     return KOTAK_SESSIONS[user_id]
 
 def round_to_tick(price: float) -> float:
@@ -93,17 +89,13 @@ async def get_algotwo_status(current_user: dict = Depends(get_current_user)):
     for strat in custom_strategies:
         try:
             strat_time = datetime.strptime(strat.get("entry_time", "10:00"), "%H:%M").time()
-            if strat.get("last_executed_date") == current_date_str:
-                strat["time_remaining"] = "Executed Today ✅"
-            elif day not in strat.get("active_days", []):
-                strat["time_remaining"] = "Not Active Today ⏸️"
+            if strat.get("last_executed_date") == current_date_str: strat["time_remaining"] = "Executed Today ✅"
+            elif day not in strat.get("active_days", []): strat["time_remaining"] = "Not Active Today ⏸️"
             elif current_time < strat_time:
                 mins = int((datetime.combine(now.date(), strat_time) - datetime.combine(now.date(), current_time)).total_seconds() // 60)
                 strat["time_remaining"] = f"In {mins} mins ⏳"
-            else:
-                strat["time_remaining"] = "Time Passed ⌛"
-        except:
-            strat["time_remaining"] = "--"
+            else: strat["time_remaining"] = "Time Passed ⌛"
+        except: strat["time_remaining"] = "--"
 
     return {"status": "success", "is_active": state.get("is_active", False), "custom_strategies": custom_strategies}
 
@@ -120,8 +112,7 @@ async def add_algotwo_strategy(strat: CustomStrategyTwoConfig, current_user: dic
     algo_col = get_collection("algo_two_state")
     state = await algo_col.find_one({"user_id": current_user["id"]})
     custom_strats = state.get("custom_strategies", []) if state else []
-    if len(custom_strats) >= 5: 
-        return {"status": "error", "message": "Max 5 Trend strategies allowed."}
+    if len(custom_strats) >= 5: return {"status": "error", "message": "Max 5 Trend strategies allowed."}
     
     new_strat = strat.dict()
     new_strat["id"] = str(uuid.uuid4())[:8]
@@ -173,10 +164,11 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
         tgt_type = strategy.get("target_type", "NONE")
         tgt_val = float(strategy.get("target_val", 0.0))
 
-        if index == "NIFTY": lot_size, gap = 65, 50
-        elif index == "BANKNIFTY": lot_size, gap = 30, 100
-        elif index == "SENSEX": lot_size, gap = 20, 100
-        else: lot_size, gap = 65, 50
+        if index == "NIFTY": lot_size = 65
+        elif index == "BANKNIFTY": lot_size = 30
+        elif index == "SENSEX": lot_size = 20
+        else: lot_size = 65
+
         qty = str(lots * lot_size)
 
         try: client = get_kotak_client(user_id)
@@ -192,28 +184,29 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
         cursor = await coll.find().to_list(length=None)
         if not cursor or spot_ltp == 0: return {"status": "error", "message": f"No Sync data or Spot Price."}
 
-        atm = round(spot_ltp / gap) * gap
+        # 🚀 ALGO.PY EXACT SEARCH LOGIC 🚀
+        atm = round(spot_ltp / conf["Gap"]) * conf["Gap"]
+        cursor.sort(key=lambda x: abs(x["Strike"] - atm))
         
-        if opt_type == "CE":
-            filtered_docs = sorted([d for d in cursor if d["Type"] == "CE" and d["Strike"] >= atm], key=lambda x: x["Strike"])
-        else:
-            filtered_docs = sorted([d for d in cursor if d["Type"] == "PE" and d["Strike"] <= atm], key=lambda x: x["Strike"], reverse=True)
-
-        tokens_req = [{"instrument_token": d["Token"], "exchange_segment": conf["Exchange"], "type": d["Type"], "sym": d["Symbol"], "strike": d["Strike"]} for d in filtered_docs]
+        tokens_req = [{"instrument_token": doc["Token"], "exchange_segment": conf["Exchange"], "type": doc["Type"], "sym": doc["Symbol"], "strike": doc["Strike"]} for doc in cursor]
         
         best_leg = None
         ltp_map = {}
         
-        for i in range(0, len(tokens_req), 20):
-            batch = tokens_req[i:i+20]
+        for i in range(0, len(tokens_req), 50):
+            batch = tokens_req[i:i+50]
             try:
-                raw = client.quotes(instrument_tokens=[{"instrument_token": b["instrument_token"], "exchange_segment": b["exchange_segment"]} for b in batch], quote_type="ltp")
-                for item in (raw if isinstance(raw, list) else raw.get('data', [])):
-                    ltp_map[str(item.get('exchange_token', item.get('tk')))] = float(item.get('ltp', 0))
+                req_batch = [{"instrument_token": b["instrument_token"], "exchange_segment": b["exchange_segment"]} for b in batch]
+                raw = client.quotes(instrument_tokens=req_batch, quote_type="all")
+                raw_data = raw if isinstance(raw, list) else raw.get('data', [])
+                
+                for item in raw_data:
+                    tk = str(item.get('exchange_token', item.get('tk')))
+                    ltp_map[tk] = float(item.get('ltp', 0))
                     
                 for b in batch:
                     tk = b["instrument_token"]
-                    if tk in ltp_map:
+                    if tk in ltp_map and b["type"] == opt_type:
                         ltp = ltp_map[tk]
                         if 0 < ltp <= target_premium:
                             best_leg = {"sym": b["sym"], "tk": tk, "ltp": ltp, "type": opt_type, "strike": b["strike"]}
@@ -221,7 +214,7 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
                 if best_leg: break
             except: pass
 
-        if not best_leg: return {"status": "error", "message": f"No {opt_type} premium found <= ₹{target_premium}"}
+        if not best_leg: return {"status": "error", "message": f"Could not find {opt_type} <= ₹{target_premium}"}
 
         hedge_leg = None
         if is_hedge and hedge_pct > 0:
@@ -241,10 +234,10 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
                             hedge_leg = {"sym": b["sym"], "tk": tk, "ltp": ltp, "strike": b["strike"]}
                             break 
 
-        # 🚀 EXACT LTP LIMIT PRICING TO AVOID EXCHANGE REJECTION 🚀
+        # 🚀 EXACT ALGO.PY ORDER PARAMS & BUFFER LOGIC 🚀
         entry_ltp = round_to_tick(best_leg["ltp"])
         sl_trigger = round_to_tick(entry_ltp * 2.0)
-        sl_limit = round_to_tick(sl_trigger + 3.0) # Tight buffer to prevent exchange freak trade block
+        sl_limit = round_to_tick(sl_trigger + 10.0)
         sl_ord_no = ""
 
         if mode == "REAL":
@@ -252,34 +245,31 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
                 uniq = str(int(time.time()))[-6:]
                 
                 def fire_order(order_name, **kwargs):
-                    try:
-                        resp = client.place_order(**kwargs)
-                        if not resp:
-                            raise Exception("Empty response from Broker API.")
-                        if isinstance(resp, dict):
-                            stat = str(resp.get("stat", "")).lower()
-                            if stat in ["not_ok", "rejected", "error"]:
-                                raise Exception(resp.get('errMsg', resp.get('message', str(resp))))
-                            
-                            nOrdNo = str(resp.get("nOrdNo", resp.get("data", {}).get("nOrdNo", "")))
-                            if not nOrdNo and stat != "ok":
-                                raise Exception("Order accepted by app but no Order ID generated.")
-                        return resp
-                    except Exception as ex:
-                        raise Exception(f"{order_name} Error: {str(ex)}")
+                    resp = client.place_order(**kwargs)
+                    if not resp:
+                        raise Exception(f"{order_name} failed: Empty response from Kotak API.")
+                    
+                    if isinstance(resp, dict):
+                        if resp.get("stat") == "Not_Ok" or resp.get("stat") == "Rejected":
+                            err_msg = resp.get("errMsg", resp.get("message", "Order rejected by broker."))
+                            raise Exception(f"{order_name} Rejected: {err_msg}")
+                        if "nOrdNo" not in resp and "nOrdNo" not in resp.get("data", {}):
+                            if resp.get("stat") != "Ok":
+                                raise Exception(f"{order_name} Error: No Order ID generated. {str(resp)}")
+                    return resp
 
                 if hedge_leg:
-                    h_prc = round_to_tick(hedge_leg["ltp"]) 
+                    h_prc = round_to_tick(hedge_leg["ltp"] + 1.0) 
                     try:
-                        await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(h_prc), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO")
+                        await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(h_prc), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0", tag=f"h_{uniq}")
                         await asyncio.sleep(0.5) 
                     except Exception as he: pass 
 
-                # Exact LTP Limit for immediate execution without exchange rejection
-                e_prc = round_to_tick(entry_ltp) 
-                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=str(e_prc), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO")
+                # EXACT MATCH TO ALGO.PY: max(entry_ltp - 3.0, 0.5)
+                e_prc = round_to_tick(max(entry_ltp - 3.0, 0.5)) 
+                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=str(e_prc), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0", tag=f"e_{uniq}")
                 
-                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", trigger_price=str(sl_trigger))
+                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=str(sl_trigger), tag=f"s_{uniq}")
                 
                 if sl_resp and isinstance(sl_resp, dict):
                     sl_ord_no = sl_resp.get("nOrdNo", sl_resp.get("data", {}).get("nOrdNo", ""))
@@ -305,8 +295,6 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
         try: await lock_col.delete_one({"_id": lock_key})
         except: pass
 
-
-# 🚀 STRICT HTTP 400 EXCEPTION HANDLER FOR UI 🚀
 @router.post("/execute-now")
 async def manual_trigger_algotwo(mode: str = "REAL", strat_id: str = None, current_user: dict = Depends(get_current_user)):
     algo_col = get_collection("algo_two_state")
@@ -399,11 +387,11 @@ async def algotwo_ws_trade_monitor():
                                     try: client.cancel_order(nOrdNo=sl_ord)
                                     except: pass
                                 
-                                # 🚀 SEBI COMPLIANT TARGET EXIT 🚀
-                                safe_exit_price = round_to_tick(ltp + 2.0)
+                                safe_exit_price = round_to_tick(ltp + 5.0)
                                 
                                 try:
-                                    client.place_order(exchange_segment=leg["exch_seg"], product="NRML", price=str(safe_exit_price), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=leg["symbol"], transaction_type="B", amo="NO")
+                                    # Exact algo.py MKT imitation format
+                                    client.place_order(exchange_segment=leg["exch_seg"], product="NRML", price=str(safe_exit_price), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=leg["symbol"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
                                     await db_col.update_one({"_id": t["_id"]}, {"$set": {"status": "CLOSED"}})
                                     asyncio.create_task(send_user_alert(user_id, f"🎯 <b>TARGET ACHIEVED!</b>\n\n✅ Booked profit for {leg['symbol']} at ₹{ltp}"))
                                 except: pass

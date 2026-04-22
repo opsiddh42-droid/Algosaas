@@ -37,15 +37,18 @@ def kotak_on_message(message):
             for item in message:
                 tk = str(item.get("tk", ""))
                 ltp = float(item.get("ltp", item.get("lastPrice", 0)))
-                if tk and ltp > 0: LIVE_LTP_MEMORY[tk] = ltp
+                if tk and ltp > 0:
+                    LIVE_LTP_MEMORY[tk] = ltp
         elif isinstance(message, dict):
             tk = str(message.get("tk", ""))
             ltp = float(message.get("ltp", message.get("lastPrice", 0)))
-            if tk and ltp > 0: LIVE_LTP_MEMORY[tk] = ltp
+            if tk and ltp > 0:
+                LIVE_LTP_MEMORY[tk] = ltp
     except: pass
 
 def get_kotak_client(user_id: str):
-    if user_id not in KOTAK_SESSIONS: raise HTTPException(status_code=401, detail="Kotak Session OFF!")
+    if user_id not in KOTAK_SESSIONS:
+        raise HTTPException(status_code=401, detail="Kotak Session OFF!")
     return KOTAK_SESSIONS[user_id]
 
 def round_to_tick(price: float) -> float:
@@ -90,13 +93,17 @@ async def get_algotwo_status(current_user: dict = Depends(get_current_user)):
     for strat in custom_strategies:
         try:
             strat_time = datetime.strptime(strat.get("entry_time", "10:00"), "%H:%M").time()
-            if strat.get("last_executed_date") == current_date_str: strat["time_remaining"] = "Executed Today ✅"
-            elif day not in strat.get("active_days", []): strat["time_remaining"] = "Not Active Today ⏸️"
+            if strat.get("last_executed_date") == current_date_str:
+                strat["time_remaining"] = "Executed Today ✅"
+            elif day not in strat.get("active_days", []):
+                strat["time_remaining"] = "Not Active Today ⏸️"
             elif current_time < strat_time:
                 mins = int((datetime.combine(now.date(), strat_time) - datetime.combine(now.date(), current_time)).total_seconds() // 60)
                 strat["time_remaining"] = f"In {mins} mins ⏳"
-            else: strat["time_remaining"] = "Time Passed ⌛"
-        except: strat["time_remaining"] = "--"
+            else:
+                strat["time_remaining"] = "Time Passed ⌛"
+        except:
+            strat["time_remaining"] = "--"
 
     return {"status": "success", "is_active": state.get("is_active", False), "custom_strategies": custom_strategies}
 
@@ -113,7 +120,8 @@ async def add_algotwo_strategy(strat: CustomStrategyTwoConfig, current_user: dic
     algo_col = get_collection("algo_two_state")
     state = await algo_col.find_one({"user_id": current_user["id"]})
     custom_strats = state.get("custom_strategies", []) if state else []
-    if len(custom_strats) >= 5: return {"status": "error", "message": "Max 5 Trend strategies allowed."}
+    if len(custom_strats) >= 5: 
+        return {"status": "error", "message": "Max 5 Trend strategies allowed."}
     
     new_strat = strat.dict()
     new_strat["id"] = str(uuid.uuid4())[:8]
@@ -141,7 +149,6 @@ async def toggle_algotwo_strategy(strat_id: str, current_user: dict = Depends(ge
             return {"status": "success"}
     return {"status": "error"}
 
-
 async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
     now = datetime.now(IST)
     lock_col = get_collection("atomic_locks")
@@ -159,7 +166,6 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
         target_premium = float(strategy.get("max_premium", 10.0))
         lots = max(int(strategy.get("lots") or 1), 1)
         
-        # 🚀 STRICT HEDGE BOOLEAN FIX 🚀
         raw_hedge = strategy.get("is_hedge", False)
         is_hedge = str(raw_hedge).strip().lower() in ['true', '1', 'yes'] if isinstance(raw_hedge, str) else bool(raw_hedge)
         hedge_pct = float(strategy.get("hedge_pct", 10.0))
@@ -188,12 +194,9 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
 
         atm = round(spot_ltp / gap) * gap
         
-        # 🚀 HFT LOGIC: SMART DIRECTIONAL FILTERING 🚀
         if opt_type == "CE":
-            # CE: Only strikes >= ATM, sort ascending (ATM -> OTM)
             filtered_docs = sorted([d for d in cursor if d["Type"] == "CE" and d["Strike"] >= atm], key=lambda x: x["Strike"])
         else:
-            # PE: Only strikes <= ATM, sort descending (ATM -> OTM)
             filtered_docs = sorted([d for d in cursor if d["Type"] == "PE" and d["Strike"] <= atm], key=lambda x: x["Strike"], reverse=True)
 
         tokens_req = [{"instrument_token": d["Token"], "exchange_segment": conf["Exchange"], "type": d["Type"], "sym": d["Symbol"], "strike": d["Strike"]} for d in filtered_docs]
@@ -201,8 +204,7 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
         best_leg = None
         ltp_map = {}
         
-        # 🚀 HFT LOGIC: FIND MAIN ENTRY FAST 🚀
-        for i in range(0, len(tokens_req), 20): # Small batches for speed
+        for i in range(0, len(tokens_req), 20):
             batch = tokens_req[i:i+20]
             try:
                 raw = client.quotes(instrument_tokens=[{"instrument_token": b["instrument_token"], "exchange_segment": b["exchange_segment"]} for b in batch], quote_type="ltp")
@@ -221,16 +223,12 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
 
         if not best_leg: return {"status": "error", "message": f"No {opt_type} premium found <= ₹{target_premium}"}
 
-        # 🚀 HFT LOGIC: FIND HEDGE ONLY IF TRUE 🚀
         hedge_leg = None
         if is_hedge and hedge_pct > 0:
             target_hedge_prc = best_leg["ltp"] * (hedge_pct / 100.0)
-            
-            # Start scanning from strikes further OTM than best_leg
             for b in tokens_req:
                 if (opt_type == "CE" and b["strike"] > best_leg["strike"]) or (opt_type == "PE" and b["strike"] < best_leg["strike"]):
                     tk = b["instrument_token"]
-                    # Fetch LTP if not in map
                     if tk not in ltp_map:
                         try:
                             rq = client.quotes(instrument_tokens=[{"instrument_token": tk, "exchange_segment": b["exchange_segment"]}], quote_type="ltp")
@@ -241,9 +239,8 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
                         ltp = ltp_map[tk]
                         if 0 < ltp <= target_hedge_prc:
                             hedge_leg = {"sym": b["sym"], "tk": tk, "ltp": ltp, "strike": b["strike"]}
-                            break # Found exact hedge!
+                            break 
 
-        # 100% SL + 10pt Buffer
         entry_ltp = round_to_tick(best_leg["ltp"])
         sl_trigger = round_to_tick(entry_ltp * 2.0)
         sl_limit = round_to_tick(sl_trigger + 10.0)
@@ -251,31 +248,35 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
 
         if mode == "REAL":
             try:
-                uniq = str(int(time.time()))[-6:]
+                # 🚀 STRICT KOTAK VALIDATION 🚀
                 def fire_order(order_name, **kwargs):
                     resp = client.place_order(**kwargs)
-                    if isinstance(resp, dict) and resp.get("stat") in ["Not_Ok", "Rejected"]:
-                        raise Exception(resp.get("errMsg", "Rejected"))
+                    if not resp:
+                        raise Exception(f"{order_name} Error: Empty response from Kotak.")
+                    if isinstance(resp, dict):
+                        stat = resp.get("stat", "")
+                        if stat in ["Not_Ok", "Rejected"]:
+                            raise Exception(f"{order_name} Rejected: {resp.get('errMsg', resp.get('message', 'Unknown Error'))}")
+                        
+                        nOrdNo = str(resp.get("nOrdNo", resp.get("data", {}).get("nOrdNo", "")))
+                        if not nOrdNo and stat != "Ok":
+                            raise Exception(f"{order_name} Error: No Order ID returned.")
                     return resp
 
-                # Only Fire if Hedge exists
                 if hedge_leg:
-                    h_prc = str(round_to_tick(hedge_leg["ltp"] + 1.0)) # Limit buy slightly above LTP
-                    try:
-                        await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=h_prc, order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
-                        await asyncio.sleep(0.5) # Wait for Margin processing
-                    except Exception as he: pass
+                    h_prc = str(round_to_tick(hedge_leg["ltp"] + 1.0)) 
+                    await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=h_prc, order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO")
+                    await asyncio.sleep(0.5) 
 
-                e_prc = str(round_to_tick(max(entry_ltp - 3.0, 0.5))) # Sell Limit slightly below LTP
-                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=e_prc, order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
+                e_prc = str(round_to_tick(max(entry_ltp - 3.0, 0.5))) 
+                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=e_prc, order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO")
                 
-                # SL is Trigger Limit
-                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=str(sl_trigger))
+                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", trigger_price=str(sl_trigger))
                 
                 if sl_resp and isinstance(sl_resp, dict):
                     sl_ord_no = sl_resp.get("nOrdNo", sl_resp.get("data", {}).get("nOrdNo", ""))
 
-            except Exception as e: return {"status": "error", "message": f"Execution Failed: {str(e)}"}
+            except Exception as e: return {"status": "error", "message": f"{str(e)}"}
                 
         db_col = get_collection("real_trades")
         legs_arr = [{"symbol": best_leg["sym"], "token": best_leg["tk"], "transaction": "S", "qty": int(qty), "entry_price": entry_ltp, "ltp": entry_ltp, "exch_seg": conf["Exchange"]}]
@@ -307,7 +308,6 @@ async def manual_trigger_algotwo(mode: str = "REAL", strat_id: str = None, curre
     if not strat_to_exec: return {"status": "error", "message": "Strategy not found."}
     return await core_algotwo_execution(current_user["id"], mode, strategy=strat_to_exec)
 
-# 🚀 WEBSOCKET TARGET MONITOR WITH SEBI COMPLIANT LIMIT EXIT 🚀
 async def algotwo_ws_trade_monitor():
     last_pos_sync = 0
     pos_map = {}
@@ -357,7 +357,6 @@ async def algotwo_ws_trade_monitor():
                     try: client.subscribe(instrument_tokens=tokens_to_subscribe)
                     except: pass
 
-                # 🚀 WS RAM CHECK
                 for t in active_trades:
                     if t["status"] == "OPEN" and t.get("target_type") != "NONE":
                         leg = t["legs"][0]
@@ -382,8 +381,6 @@ async def algotwo_ws_trade_monitor():
                                     try: client.cancel_order(nOrdNo=sl_ord)
                                     except: pass
                                 
-                                # 🚀 SEBI COMPLIANT LIMIT ORDER EXIT 🚀
-                                # Instead of MKT price=0, we use Limit Buy slightly higher than LTP for instant fill
                                 safe_exit_price = str(round_to_tick(ltp + 5.0))
                                 
                                 try:

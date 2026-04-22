@@ -241,16 +241,16 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
                             hedge_leg = {"sym": b["sym"], "tk": tk, "ltp": ltp, "strike": b["strike"]}
                             break 
 
+        # 🚀 EXACT LTP LIMIT PRICING TO AVOID EXCHANGE REJECTION 🚀
         entry_ltp = round_to_tick(best_leg["ltp"])
         sl_trigger = round_to_tick(entry_ltp * 2.0)
-        sl_limit = round_to_tick(sl_trigger + 10.0)
+        sl_limit = round_to_tick(sl_trigger + 3.0) # Tight buffer to prevent exchange freak trade block
         sl_ord_no = ""
 
         if mode == "REAL":
             try:
                 uniq = str(int(time.time()))[-6:]
                 
-                # 🚀 STRICT ERROR CHECKING 🚀
                 def fire_order(order_name, **kwargs):
                     try:
                         resp = client.place_order(**kwargs)
@@ -269,19 +269,17 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict):
                         raise Exception(f"{order_name} Error: {str(ex)}")
 
                 if hedge_leg:
-                    h_prc = round_to_tick(hedge_leg["ltp"] + 1.0) 
+                    h_prc = round_to_tick(hedge_leg["ltp"]) 
                     try:
-                        # 🚀 KOTAK DECIMAL FORMAT FIX: {h_prc:.2f} 🚀
-                        await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=f"{h_prc:.2f}", order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
+                        await asyncio.to_thread(fire_order, "Hedge Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(h_prc), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=hedge_leg["sym"], transaction_type="B", amo="NO")
                         await asyncio.sleep(0.5) 
                     except Exception as he: pass 
 
-                e_prc = round_to_tick(max(entry_ltp - 3.0, 0.5)) 
-                # 🚀 KOTAK DECIMAL FORMAT FIX: {e_prc:.2f} 🚀
-                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=f"{e_prc:.2f}", order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
+                # Exact LTP Limit for immediate execution without exchange rejection
+                e_prc = round_to_tick(entry_ltp) 
+                await asyncio.to_thread(fire_order, "Main Sell", exchange_segment=conf["Exchange"], product="NRML", price=str(e_prc), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="S", amo="NO")
                 
-                # 🚀 KOTAK DECIMAL FORMAT FIX FOR SL 🚀
-                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=f"{sl_limit:.2f}", order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price=f"{sl_trigger:.2f}")
+                sl_resp = await asyncio.to_thread(fire_order, "SL Buy", exchange_segment=conf["Exchange"], product="NRML", price=str(sl_limit), order_type="SL", quantity=str(qty), validity="DAY", trading_symbol=best_leg["sym"], transaction_type="B", amo="NO", trigger_price=str(sl_trigger))
                 
                 if sl_resp and isinstance(sl_resp, dict):
                     sl_ord_no = sl_resp.get("nOrdNo", sl_resp.get("data", {}).get("nOrdNo", ""))
@@ -323,7 +321,6 @@ async def manual_trigger_algotwo(mode: str = "REAL", strat_id: str = None, curre
         
     result = await core_algotwo_execution(current_user["id"], mode, strategy=strat_to_exec)
     
-    # AGAR KOTAK NE REJECT KIYA, TOH UI KO BATAO KI ERROR HAI
     if result.get("status") == "error":
         raise HTTPException(status_code=400, detail=result.get("message", "Execution Failed"))
         
@@ -402,10 +399,11 @@ async def algotwo_ws_trade_monitor():
                                     try: client.cancel_order(nOrdNo=sl_ord)
                                     except: pass
                                 
-                                safe_exit_price = round_to_tick(ltp + 5.0)
+                                # 🚀 SEBI COMPLIANT TARGET EXIT 🚀
+                                safe_exit_price = round_to_tick(ltp + 2.0)
                                 
                                 try:
-                                    client.place_order(exchange_segment=leg["exch_seg"], product="NRML", price=f"{safe_exit_price:.2f}", order_type="L", quantity=str(qty), validity="DAY", trading_symbol=leg["symbol"], transaction_type="B", amo="NO", disclosed_quantity="0", pf="N", trigger_price="0")
+                                    client.place_order(exchange_segment=leg["exch_seg"], product="NRML", price=str(safe_exit_price), order_type="L", quantity=str(qty), validity="DAY", trading_symbol=leg["symbol"], transaction_type="B", amo="NO")
                                     await db_col.update_one({"_id": t["_id"]}, {"$set": {"status": "CLOSED"}})
                                     asyncio.create_task(send_user_alert(user_id, f"🎯 <b>TARGET ACHIEVED!</b>\n\n✅ Booked profit for {leg['symbol']} at ₹{ltp}"))
                                 except: pass

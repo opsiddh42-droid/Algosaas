@@ -205,7 +205,7 @@
                             <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
                                 <span class="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg text-sm">🧭</span> Trend Bot
                             </h3>
-                            <p class="text-[13px] text-indigo-600 font-bold mt-1.5">Single Side Directional Selling</p>
+                            <p class="text-[13px] text-indigo-600 font-bold mt-1.5">Auto-Recovery Directional Selling</p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer mt-1">
                             <input type="checkbox" id="algotwo-toggle" class="sr-only peer" onchange="toggleMasterAlgoTwo()">
@@ -435,6 +435,19 @@
                     </div>
                 </div>
 
+                <div class="bg-rose-50/50 p-4 rounded-xl border border-rose-100">
+                    <label class="flex items-center space-x-2 cursor-pointer mb-2">
+                        <input type="checkbox" id="cfg2-recovery-check" onchange="toggleRecoveryCountTwo()" class="form-checkbox text-rose-500 rounded h-4 w-4">
+                        <span class="font-bold text-rose-800 text-[11px] uppercase tracking-wide">Auto Re-Entry on SL Hit</span>
+                    </label>
+                    <div id="cfg2-recovery-div" class="hidden">
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase">Max Attempts:</span>
+                            <input type="number" id="cfg2-recovery-count" value="1" min="1" max="10" class="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-sm font-bold text-rose-900 outline-none focus:ring-2 focus:ring-rose-100">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                     <label class="block text-[11px] font-bold text-indigo-800 uppercase mb-2">Target Settings (Via WS)</label>
                     <div class="grid grid-cols-2 gap-3">
@@ -637,7 +650,7 @@
         function logout() { localStorage.clear(); location.reload(); }
 
         /* ===============================
-           ALGO 1: STRADDLE LOGIC 
+           ALGO 1: STRADDLE LOGIC (Intact)
         ================================== */
         async function fetchAlgoStatus() {
             const token = localStorage.getItem('saas_token'); if(!token) return;
@@ -795,7 +808,7 @@
 
 
         /* ===============================
-           ALGO 2: TREND BOT LOGIC 
+           ALGO 2: TREND BOT / RECOVERY LOGIC 
         ================================== */
         let algotwoStrats = [];
         
@@ -840,12 +853,20 @@
             inp.className = v === 'false' ? 'w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-400 outline-none' : 'w-full bg-white border border-emerald-300 rounded-xl px-3 py-2.5 text-sm font-bold text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-100'; 
         }
 
+        // 🚀 NEW: TOGGLE RECOVERY LOGIC 🚀
+        function toggleRecoveryCountTwo() {
+            const isChecked = document.getElementById('cfg2-recovery-check').checked;
+            document.getElementById('cfg2-recovery-div').style.display = isChecked ? 'block' : 'none';
+        }
+
         function openAlgoTwoSettings() { 
             document.querySelectorAll('input[name="cfg2-days"]').forEach(cb=>cb.checked=false); 
             document.getElementById('cfg2-hour').value = ""; 
             document.getElementById('cfg2-minute').value = ""; 
             document.getElementById('cfg2-lots').value = "1"; 
             document.getElementById('cfg2-premium').value = "";
+            document.getElementById('cfg2-recovery-check').checked = false;
+            toggleRecoveryCountTwo();
             document.getElementById('algotwo-settings-modal').classList.remove('hidden'); 
         }
         
@@ -873,7 +894,10 @@
                 target_type: document.getElementById('cfg2-tgt-type').value, 
                 target_val: parseFloat(document.getElementById('cfg2-tgt-val').value || 0),
                 entry_time: `${document.getElementById('cfg2-hour').value.padStart(2,'0')}:${document.getElementById('cfg2-minute').value.padStart(2,'0')}`, 
-                active_days: days
+                active_days: days,
+                // 🚀 NEW FIELDS
+                auto_recovery: document.getElementById('cfg2-recovery-check').checked,
+                recovery_count: document.getElementById('cfg2-recovery-check').checked ? parseInt(document.getElementById('cfg2-recovery-count').value || 1) : 0
             };
             
             const res = await fetch(`${API_BASE_URL}/algotwo/add-strategy`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }, body: JSON.stringify(payload) });
@@ -896,6 +920,8 @@
                     const daysStr = s.active_days.map(d=>daysMap[d]).join(", ");
                     const hedgeStr = s.is_hedge ? `<span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">Hedge: ${s.hedge_pct}%</span>` : `<span class="text-slate-400">No Hedge</span>`;
                     const tgtStr = s.target_type !== "NONE" ? `<span class="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">Tgt: ${s.target_val} ${s.target_type}</span>` : `<span class="text-slate-400">No Target</span>`;
+                    // 🚀 NEW RECOVERY RENDER
+                    const recStr = s.auto_recovery ? `<span class="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">Re-Entry: ${s.recovery_count}x</span>` : `<span class="text-slate-400">No Re-Entry</span>`;
                     
                     html += `
                     <div class="mb-3 p-4 bg-slate-50 border border-slate-200 rounded-xl relative shadow-sm">
@@ -912,7 +938,7 @@
                         <div class="text-[11px] text-slate-600 space-y-1.5 font-medium">
                             <p><b>Days:</b> ${daysStr} | <b>Time:</b> ${s.entry_time}</p>
                             <p><b>Max Prm:</b> ₹${s.max_premium} | <b>Lots:</b> ${s.lots} | <b>SL:</b> 100% (+10pt buf)</p>
-                            <p class="flex gap-2 mt-1.5">${tgtStr} ${hedgeStr}</p>
+                            <p class="flex flex-wrap gap-2 mt-1.5">${tgtStr} ${hedgeStr} ${recStr}</p>
                             <div class="mt-2.5 pt-2.5 border-t border-slate-200">
                                 <button onclick="forceExecuteTwo('${s.id}')" class="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold py-2 rounded-lg active:scale-95 transition-all">⚡ Force Execute</button>
                             </div>

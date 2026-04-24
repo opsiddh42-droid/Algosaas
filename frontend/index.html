@@ -55,7 +55,7 @@
             -webkit-text-fill-color: #0f172a !important;
         }
         .day-cb:checked + div { background-color: #2563eb; border-color: #2563eb; color: white; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2); }
-        .day-cb-2:checked + div { background-color: #4f46e5; border-color: #4f46e5; color: white; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2); }
+        .day-cb-2:checked + div { background-color: #9333ea; border-color: #9333ea; color: white; box-shadow: 0 4px 10px rgba(147, 51, 234, 0.2); }
         
         /* Custom Scrollbar for a clean look */
         ::-webkit-scrollbar { width: 6px; }
@@ -199,28 +199,28 @@
                     </div>
                 </div>
 
-                <div class="bg-gradient-to-br from-indigo-50 to-white rounded-[1.5rem] p-6 mb-6 border border-indigo-100 shadow-sm relative overflow-hidden">
+                <div class="bg-gradient-to-br from-purple-50 to-white rounded-[1.5rem] p-6 mb-6 border border-purple-100 shadow-sm relative overflow-hidden">
                     <div class="flex justify-between items-start mb-5 relative z-10">
                         <div>
                             <h3 class="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                                <span class="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg text-sm">🧭</span> Trend Bot
+                                <span class="bg-purple-100 text-purple-600 p-1.5 rounded-lg text-sm">🛡️</span> Recovery Straddle
                             </h3>
-                            <p class="text-[13px] text-indigo-600 font-bold mt-1.5">Auto-Recovery Directional Selling</p>
+                            <p class="text-[13px] text-purple-600 font-bold mt-1.5">Straddle with Auto Re-entry on SL Hit</p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer mt-1">
                             <input type="checkbox" id="algotwo-toggle" class="sr-only peer" onchange="toggleMasterAlgoTwo()">
-                            <div class="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 shadow-inner"></div>
+                            <div class="w-14 h-7 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-purple-600 shadow-inner"></div>
                         </label>
                     </div>
-                    <div class="bg-white rounded-xl p-3.5 border border-indigo-50 flex justify-between items-center mb-5 shadow-sm relative z-10">
+                    <div class="bg-white rounded-xl p-3.5 border border-purple-50 flex justify-between items-center mb-5 shadow-sm relative z-10">
                         <div>
                             <p class="text-[10px] text-slate-400 uppercase font-extrabold tracking-wider">Status</p>
                             <p id="algotwo-status-text" class="text-[15px] font-black text-slate-700 mt-0.5">⚪ Offline</p>
                         </div>
                     </div>
                     <div class="flex gap-3 relative z-10">
-                        <button onclick="viewSavedStrategyTwo()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition-all active:scale-95">
-                            <span class="text-indigo-200 mr-2">📄</span> Trend Settings
+                        <button onclick="viewSavedStrategyTwo()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition-all active:scale-95">
+                            <span class="text-purple-200 mr-2">📄</span> Recovery Settings
                         </button>
                     </div>
                 </div>
@@ -382,10 +382,11 @@
         </div>
     </div>
 
+
     <div id="view-strategy-two-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center p-4 z-[60]">
         <div class="bg-white w-full max-w-sm rounded-[2rem] border border-slate-100 p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
             <div class="flex justify-between items-center mb-4 shrink-0">
-                <h3 class="text-lg font-extrabold text-indigo-900">🧭 Trend Strategies (Max 5)</h3>
+                <h3 class="text-lg font-extrabold text-purple-900">🧭 Recovery Strategies (Max 5)</h3>
                 <button onclick="closeSavedStrategyTwo()" class="text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl active:scale-90 transition-all">&times;</button>
             </div>
             <div id="saved-strategy-two-content" class="overflow-y-auto flex-1 pr-1 space-y-3 pb-2"></div>
@@ -394,19 +395,16 @@
     </div>
 
     <div id="algotwo-settings-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center p-4 z-[70]">
-        <div class="bg-white w-full max-w-sm rounded-[2rem] border border-indigo-100 p-7 shadow-2xl animate-[slideUp_0.2s_ease-out] max-h-[90vh] overflow-y-auto">
+        <div class="bg-white w-full max-w-sm rounded-[2rem] border border-purple-100 p-7 shadow-2xl animate-[slideUp_0.2s_ease-out] max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-extrabold text-indigo-900 flex items-center gap-2">⚙️ New Trend Strat</h3>
+                <h3 class="text-xl font-extrabold text-purple-900 flex items-center gap-2">⚙️ New Recovery Strat</h3>
                 <button onclick="closeAlgoTwoSettings()" class="text-slate-400 hover:text-slate-700 bg-slate-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl active:scale-90 transition-all">&times;</button>
             </div>
             
             <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <select id="cfg2-index" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-bold outline-none focus:border-indigo-500">
+                <div>
+                    <select id="cfg2-index" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-bold outline-none focus:border-purple-500">
                         <option value="NIFTY">NIFTY 50</option><option value="BANKNIFTY">BANKNIFTY</option><option value="SENSEX">SENSEX</option>
-                    </select>
-                    <select id="cfg2-type" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-bold outline-none focus:border-indigo-500">
-                        <option value="CE">Sell CE (Bearish)</option><option value="PE">Sell PE (Bullish)</option>
                     </select>
                 </div>
                 
@@ -419,19 +417,19 @@
                 </div>
 
                 <div class="grid grid-cols-3 gap-3">
-                    <input type="number" id="cfg2-hour" class="w-full border border-slate-200 rounded-xl px-2 py-3 text-sm font-bold text-center text-slate-800 outline-none focus:border-indigo-500" placeholder="HH (10)">
-                    <input type="number" id="cfg2-minute" class="w-full border border-slate-200 rounded-xl px-2 py-3 text-sm font-bold text-center text-slate-800 outline-none focus:border-indigo-500" placeholder="MM (00)">
-                    <input type="number" id="cfg2-lots" class="w-full border border-slate-200 rounded-xl px-2 py-3 text-sm font-bold text-center text-slate-800 outline-none focus:border-indigo-500" placeholder="Lots" value="1" min="1">
+                    <input type="number" id="cfg2-hour" class="w-full border border-slate-200 rounded-xl px-2 py-3 text-sm font-bold text-center text-slate-800 outline-none focus:border-purple-500" placeholder="HH (10)">
+                    <input type="number" id="cfg2-minute" class="w-full border border-slate-200 rounded-xl px-2 py-3 text-sm font-bold text-center text-slate-800 outline-none focus:border-purple-500" placeholder="MM (00)">
+                    <input type="number" id="cfg2-lots" class="w-full border border-slate-200 rounded-xl px-2 py-3 text-sm font-bold text-center text-slate-800 outline-none focus:border-purple-500" placeholder="Lots" value="1" min="1">
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Max Prm (₹)</label>
-                        <input type="number" id="cfg2-premium" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500" placeholder="e.g. 10">
+                        <input type="number" id="cfg2-premium" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-purple-500" placeholder="e.g. 6.0">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Stoploss</label>
-                        <input type="text" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 font-bold outline-none" value="100% (+10pt buf)" disabled>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Stoploss (%)</label>
+                        <input type="number" id="cfg2-sl" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 font-bold outline-none focus:border-purple-500" placeholder="e.g. 200" value="200">
                     </div>
                 </div>
 
@@ -441,39 +439,18 @@
                         <span class="font-bold text-rose-800 text-[11px] uppercase tracking-wide">Auto Re-Entry on SL Hit</span>
                     </label>
                     <div id="cfg2-recovery-div" class="hidden">
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 mt-2">
                             <span class="text-[10px] font-bold text-slate-500 uppercase">Max Attempts:</span>
                             <input type="number" id="cfg2-recovery-count" value="1" min="1" max="10" class="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-sm font-bold text-rose-900 outline-none focus:ring-2 focus:ring-rose-100">
                         </div>
+                        <p class="text-[9px] text-rose-400 mt-2 font-medium">If SL hits, opposite side will be squared off and new Straddle will be sold automatically.</p>
                     </div>
                 </div>
 
-                <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                    <label class="block text-[11px] font-bold text-indigo-800 uppercase mb-2">Target Settings (Via WS)</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <select id="cfg2-tgt-type" onchange="toggleTgt()" class="w-full border border-indigo-200 rounded-xl px-3 py-2.5 text-sm font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-100">
-                            <option value="NONE">No Target</option>
-                            <option value="POINTS">Points Drop</option>
-                            <option value="RUPEE">Total Profit (₹)</option>
-                        </select>
-                        <input type="number" id="cfg2-tgt-val" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-400 outline-none" placeholder="Value" disabled>
-                    </div>
-                </div>
-
-                <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
-                    <label class="block text-[11px] font-bold text-emerald-800 uppercase mb-2">Hedge (Margin Benefit)</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <select id="cfg2-hedge" onchange="toggleHedge()" class="w-full border border-emerald-200 rounded-xl px-3 py-2.5 text-sm font-bold text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-100">
-                            <option value="false">No</option>
-                            <option value="true">Yes</option>
-                        </select>
-                        <input type="number" id="cfg2-hedge-pct" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-400 outline-none" placeholder="% of Sell Prm" value="10" disabled>
-                    </div>
-                </div>
             </div>
             
-            <button onclick="addAlgoTwoStrategy()" id="save-cfg2-btn" class="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-all shadow-md active:scale-[0.98] flex justify-center items-center">
-                Save Trend Strategy
+            <button onclick="addAlgoTwoStrategy()" id="save-cfg2-btn" class="w-full mt-6 bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl transition-all shadow-md active:scale-[0.98] flex justify-center items-center">
+                Save Recovery Strategy
             </button>
         </div>
     </div>
@@ -549,7 +526,7 @@
             if(token) {
                 showDashboard(localStorage.getItem('saas_user'), localStorage.getItem('saas_kotak'));
                 fetchAlgoStatus();
-                fetchAlgoTwoStatus(); // 🚀 LOAD TREND ALGO
+                fetchAlgoTwoStatus(); 
                 fetchLiveTrades(); 
                 connectWebSocket();
                 
@@ -808,7 +785,7 @@
 
 
         /* ===============================
-           ALGO 2: TREND BOT / RECOVERY LOGIC 
+           ALGO 2: RECOVERY STRADDLE LOGIC 
         ================================== */
         let algotwoStrats = [];
         
@@ -833,27 +810,12 @@
         }
         
         async function deleteStrategyTwo(id) { 
-            if(confirm("Delete Trend Strategy?")) { 
+            if(confirm("Delete Recovery Strategy?")) { 
                 await fetch(`${API_BASE_URL}/algotwo/delete-strategy/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); 
                 fetchAlgoTwoStatus().then(viewSavedStrategyTwo); 
             } 
         }
 
-        function toggleTgt() { 
-            const v = document.getElementById('cfg2-tgt-type').value; 
-            const inp = document.getElementById('cfg2-tgt-val'); 
-            inp.disabled = v === 'NONE'; 
-            inp.className = v === 'NONE' ? 'w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-400 outline-none' : 'w-full bg-white border border-indigo-300 rounded-xl px-3 py-2.5 text-sm font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-100'; 
-        }
-        
-        function toggleHedge() { 
-            const v = document.getElementById('cfg2-hedge').value; 
-            const inp = document.getElementById('cfg2-hedge-pct'); 
-            inp.disabled = v === 'false'; 
-            inp.className = v === 'false' ? 'w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-400 outline-none' : 'w-full bg-white border border-emerald-300 rounded-xl px-3 py-2.5 text-sm font-bold text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-100'; 
-        }
-
-        // 🚀 NEW: TOGGLE RECOVERY LOGIC 🚀
         function toggleRecoveryCountTwo() {
             const isChecked = document.getElementById('cfg2-recovery-check').checked;
             document.getElementById('cfg2-recovery-div').style.display = isChecked ? 'block' : 'none';
@@ -865,6 +827,7 @@
             document.getElementById('cfg2-minute').value = ""; 
             document.getElementById('cfg2-lots').value = "1"; 
             document.getElementById('cfg2-premium').value = "";
+            document.getElementById('cfg2-sl').value = "200";
             document.getElementById('cfg2-recovery-check').checked = false;
             toggleRecoveryCountTwo();
             document.getElementById('algotwo-settings-modal').classList.remove('hidden'); 
@@ -875,7 +838,7 @@
         async function addAlgoTwoStrategy() {
             const btn = document.getElementById('save-cfg2-btn'); 
             const orig = btn.innerHTML; 
-            btn.innerHTML = 'Saving...'; 
+            btn.innerHTML = '<span class="loader loader-white mr-2"></span> Saving...'; 
             btn.disabled = true;
             
             const days = Array.from(document.querySelectorAll('input[name="cfg2-days"]:checked')).map(cb=>parseInt(cb.value));
@@ -886,23 +849,18 @@
 
             const payload = {
                 index: document.getElementById('cfg2-index').value, 
-                option_type: document.getElementById('cfg2-type').value,
                 max_premium: parseFloat(document.getElementById('cfg2-premium').value || 10), 
+                sl_pct: parseFloat(document.getElementById('cfg2-sl').value || 200),
                 lots: parseInt(document.getElementById('cfg2-lots').value || 1),
-                is_hedge: document.getElementById('cfg2-hedge').value === 'true', 
-                hedge_pct: parseFloat(document.getElementById('cfg2-hedge-pct').value || 10),
-                target_type: document.getElementById('cfg2-tgt-type').value, 
-                target_val: parseFloat(document.getElementById('cfg2-tgt-val').value || 0),
                 entry_time: `${document.getElementById('cfg2-hour').value.padStart(2,'0')}:${document.getElementById('cfg2-minute').value.padStart(2,'0')}`, 
                 active_days: days,
-                // 🚀 NEW FIELDS
                 auto_recovery: document.getElementById('cfg2-recovery-check').checked,
                 recovery_count: document.getElementById('cfg2-recovery-check').checked ? parseInt(document.getElementById('cfg2-recovery-count').value || 1) : 0
             };
             
             const res = await fetch(`${API_BASE_URL}/algotwo/add-strategy`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }, body: JSON.stringify(payload) });
             if(res.ok) { 
-                alert("✅ Trend Strategy Added!"); 
+                alert("✅ Recovery Strategy Added!"); 
                 closeAlgoTwoSettings(); 
                 fetchAlgoTwoStatus().then(viewSavedStrategyTwo); 
             } else { 
@@ -918,37 +876,34 @@
                 algotwoStrats.forEach(s => {
                     const daysMap = {0:"Mon", 1:"Tue", 2:"Wed", 3:"Thu", 4:"Fri", 5:"Sat", 6:"Sun"};
                     const daysStr = s.active_days.map(d=>daysMap[d]).join(", ");
-                    const hedgeStr = s.is_hedge ? `<span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">Hedge: ${s.hedge_pct}%</span>` : `<span class="text-slate-400">No Hedge</span>`;
-                    const tgtStr = s.target_type !== "NONE" ? `<span class="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">Tgt: ${s.target_val} ${s.target_type}</span>` : `<span class="text-slate-400">No Target</span>`;
-                    // 🚀 NEW RECOVERY RENDER
-                    const recStr = s.auto_recovery ? `<span class="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">Re-Entry: ${s.recovery_count}x</span>` : `<span class="text-slate-400">No Re-Entry</span>`;
+                    const recStr = s.auto_recovery ? `<span class="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">Re-Entry: ${s.recovery_count}x</span>` : `<span class="text-slate-400 font-bold">No Re-Entry</span>`;
                     
                     html += `
                     <div class="mb-3 p-4 bg-slate-50 border border-slate-200 rounded-xl relative shadow-sm">
                         <div class="flex justify-between items-center mb-2">
-                            <h4 class="font-black text-indigo-900 text-sm">Sell ${s.option_type} (${s.index})</h4>
+                            <h4 class="font-black text-purple-900 text-sm">Straddle (${s.index})</h4>
                             <div class="flex gap-2 items-center">
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" class="sr-only peer" ${s.is_active?'checked':''} onchange="toggleCustomStrategyTwo('${s.id}')">
-                                    <div class="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
+                                    <div class="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
                                 </label>
                                 <button onclick="deleteStrategyTwo('${s.id}')" class="text-rose-500 bg-rose-50 p-1.5 rounded-lg border border-rose-100 active:scale-90 transition">🗑️</button>
                             </div>
                         </div>
                         <div class="text-[11px] text-slate-600 space-y-1.5 font-medium">
                             <p><b>Days:</b> ${daysStr} | <b>Time:</b> ${s.entry_time}</p>
-                            <p><b>Max Prm:</b> ₹${s.max_premium} | <b>Lots:</b> ${s.lots} | <b>SL:</b> 100% (+10pt buf)</p>
-                            <p class="flex flex-wrap gap-2 mt-1.5">${tgtStr} ${hedgeStr} ${recStr}</p>
+                            <p><b>Max Prm:</b> ₹${s.max_premium} | <b>Lots:</b> ${s.lots} | <b>SL:</b> ${s.sl_pct}%</p>
+                            <p class="flex flex-wrap gap-2 mt-1.5">${recStr}</p>
                             <div class="mt-2.5 pt-2.5 border-t border-slate-200">
-                                <button onclick="forceExecuteTwo('${s.id}')" class="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold py-2 rounded-lg active:scale-95 transition-all">⚡ Force Execute</button>
+                                <button onclick="forceExecuteTwo('${s.id}')" class="w-full bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-bold py-2 rounded-lg active:scale-95 transition-all">⚡ Force Execute</button>
                             </div>
                         </div>
                     </div>`;
                 });
-            } else { html += `<p class="text-xs text-slate-500 text-center py-4 font-bold">No Trend strategies added.</p>`; }
+            } else { html += `<p class="text-xs text-slate-500 text-center py-4 font-bold">No Recovery strategies added.</p>`; }
             
             if(algotwoStrats.length < 5) {
-                html += `<button onclick="closeSavedStrategyTwo(); openAlgoTwoSettings();" class="w-full mt-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-3.5 rounded-xl border border-indigo-200 border-dashed text-sm shadow-sm transition-all">+ Add Trend Strategy (${algotwoStrats.length}/5)</button>`;
+                html += `<button onclick="closeSavedStrategyTwo(); openAlgoTwoSettings();" class="w-full mt-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold py-3.5 rounded-xl border border-purple-200 border-dashed text-sm shadow-sm transition-all">+ Add Strategy (${algotwoStrats.length}/5)</button>`;
             } else {
                 html += `<p class="text-center text-[10px] text-rose-500 mt-3 font-extrabold uppercase tracking-widest bg-rose-50 py-2 rounded-lg border border-rose-100">Max 5 strategies limit reached.</p>`;
             }
@@ -957,7 +912,7 @@
         function closeSavedStrategyTwo() { document.getElementById('view-strategy-two-modal').classList.add('hidden'); }
         
         async function forceExecuteTwo(id) { 
-            if(confirm("Force execute this trend strategy now?")) { 
+            if(confirm("Force execute this strategy now?")) { 
                 const res = await fetch(`${API_BASE_URL}/algotwo/execute-now?strat_id=${id}`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }}); 
                 const data = await res.json();
                 alert(res.ok ? "✅ Executed" : "❌ " + (data.message || "Failed"));
@@ -989,8 +944,8 @@
                 const res = await fetch(`${API_BASE_URL}/market/option-chain?symbol=${sym}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('saas_token')}` }});
                 const response = await res.json();
                 if (res.ok) {
-                    document.getElementById('expiry-display').innerText = `Exp: ${response.expiry} | Spot: ₹${response.spot_price}`;
-                    currentAtm = Math.round(response.spot_price / 50) * 50; renderChain(response.data, sym, response.expiry);
+                    document.getElementById('expiry-display').innerText = `Exp: ${response.expiry || 'Latest'} | Spot: ₹${response.spot_price}`;
+                    currentAtm = Math.round(response.spot_price / 50) * 50; renderChain(response.data, sym, response.expiry || '');
                     document.getElementById('modal-qty').value = sym === 'BANKNIFTY' ? 15 : sym === 'SENSEX' ? 10 : 50;
                 } else container.innerHTML = `<div class="text-center text-sm font-bold text-rose-500 py-6 bg-white rounded-xl border border-slate-200">❌ ${response.detail || "Error loading chain"}</div>`;
             } catch(e) { container.innerHTML = `<div class="text-center text-sm font-bold text-rose-500 py-6 bg-white rounded-xl border border-slate-200">❌ Network Error.</div>`; }

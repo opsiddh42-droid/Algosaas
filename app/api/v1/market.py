@@ -1,6 +1,8 @@
 import os
 import requests
 import pandas as pd
+import re
+import calendar
 from fastapi import APIRouter, HTTPException, Depends
 from app.api.deps import get_current_user
 from app.core.database import get_collection
@@ -31,7 +33,7 @@ async def sync_master_data(current_user: dict = Depends(get_current_user)):
         total_loaded = 0
 
         for idx_name, conf in INDICES_CONFIG.items():
-            # 1. Fetch Spot to find Weekly Expiry
+            # 1. Fetch Spot to find ATM
             spot_ltp = 0
             try:
                 q = client.quotes(instrument_tokens=[{"instrument_token": conf["SpotToken"], "exchange_segment": conf["SpotExch"]}], quote_type="all")
@@ -60,31 +62,63 @@ async def sync_master_data(current_user: dict = Depends(get_current_user)):
                 r = requests.get(url)
                 with open(master_file, "wb") as f: f.write(r.content)
 
-            # 3. Find Weekly Expiry Date String
+            # 3. 🚀 SMART EXPIRY DETECTION (WEEKLY & MONTHLY) 🚀
             df_raw = pd.read_csv(master_file, low_memory=False)
             all_syms = set(df_raw.iloc[:, 7].astype(str).values) if "exchange_token" not in open(master_file).read(100).lower() else set(df_raw['tradingsymbol'].values)
             
+            prefixes = set()
+            atm_str1 = f"{int(atm)}CE"
+            atm_str2 = f"{int(atm)}.00CE"
+            
+            # Step A: Collect all prefixes for the current ATM strike
+            for sym in all_syms:
+                if sym.startswith(idx_name):
+                    if sym.endswith(atm_str1):
+                        prefixes.add(sym[len(idx_name):-len(atm_str1)])
+                    elif sym.endswith(atm_str2):
+                        prefixes.add(sym[len(idx_name):-len(atm_str2)])
+                        
+            valid_expiries = []
+            today = datetime.now(IST).date()
+            
+            # Step B: Parse all formats and sort them Chronologically
+            for p in prefixes:
+                try:
+                    if re.match(r"^\d{2}[A-Z]{3}\d{2}$", p): # DDMMMYY (Standard Weekly e.g. 09APR26)
+                        dt = datetime.strptime(p, "%d%b%y").date()
+                        if dt >= today: valid_expiries.append((dt, p))
+                        
+                    elif re.match(r"^\d{2}[A-Z]{3}$", p): # YYMMM (Monthly e.g. 26APR)
+                        year = 2000 + int(p[:2])
+                        month = datetime.strptime(p[2:], "%b").month
+                        last_day = calendar.monthrange(year, month)[1]
+                        dt = datetime(year, month, last_day).date()
+                        # Monthly expiry typically last Thursday (or near month end)
+                        while dt.weekday() != 3: dt -= timedelta(days=1)
+                        if dt >= today - timedelta(days=3): # Buffer for holiday shifts
+                            valid_expiries.append((dt, p))
+                            
+                    elif re.match(r"^\d{5}$", p): # YYM(DD) (Kite Weekly e.g. 26409)
+                        y = 2000 + int(p[:2])
+                        m = "123456789OND".index(p[2]) + 1
+                        d = int(p[3:])
+                        dt = datetime(y, m, d).date()
+                        if dt >= today: valid_expiries.append((dt, p))
+                except: pass
+                
             expiry_str = None
-            now = datetime.now(IST)
-            for i in range(45):
-                test_date = now + timedelta(days=i)
-                d_str = f"{test_date.strftime('%d')}{test_date.strftime('%b').upper()}{test_date.strftime('%y')}"
-                if f"{idx_name}{d_str}{atm}CE" in all_syms or f"{idx_name}{d_str}{atm}.00CE" in all_syms:
-                    expiry_str = d_str; break
-                # Kite format check
-                m_char = "123456789OND"[test_date.month - 1]
-                k_str = f"{test_date.strftime('%y')}{m_char}{test_date.strftime('%d')}"
-                if f"{idx_name}{k_str}{atm}CE" in all_syms:
-                    expiry_str = k_str; break
+            if valid_expiries:
+                # Sort by closest date and pick the absolute first one!
+                valid_expiries.sort(key=lambda x: x[0])
+                expiry_str = valid_expiries[0][1]
 
-            # 4. Filter only Weekly Expiry Strikes & Save to Mongo
+            # 4. Filter Exact Expiry Strikes & Save to Mongo
             if expiry_str:
                 prefix = f"{idx_name}{expiry_str}"
                 coll = get_collection(conf["Coll"])
-                await coll.delete_many({}) # Clear old weekly data
+                await coll.delete_many({}) # Clear old data
                 
                 db_records = []
-                # Re-reading to filter
                 df = pd.read_csv(master_file, low_memory=False)
                 is_kite = "exchange_token" in open(master_file).read(100).lower()
 
@@ -93,7 +127,7 @@ async def sync_master_data(current_user: dict = Depends(get_current_user)):
                     for _, r in df.iterrows():
                         db_records.append({"Token": str(int(r['exchange_token'])), "Symbol": r['tradingsymbol'], "Strike": int(r['strike']), "Type": "CE" if "CE" in r['tradingsymbol'] else "PE"})
                 else:
-                    # Kotak format manual filter
+                    # Kotak format
                     with open(master_file, "r") as f:
                         for line in f:
                             if prefix in line:

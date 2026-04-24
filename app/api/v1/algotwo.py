@@ -124,9 +124,19 @@ async def toggle_algotwo_strategy(strat_id: str, current_user: dict = Depends(ge
             return {"status": "success"}
     return {"status": "error"}
 
-# 🚀 CORE STRADDLE EXECUTION ENGINE (Recovery Done support added) 🚀
+# 🚀 CORE STRADDLE EXECUTION ENGINE (Recovery Done support & Atomic Lock added) 🚀
 async def core_algotwo_execution(user_id: str, mode: str, strategy: dict, recoveries_done: int = 0):
     now = datetime.now(IST)
+
+    # 🚀 ATOMIC LOCK FOR SAFETY 🚀
+    lock_col = get_collection("atomic_locks")
+    lock_key = f"algotwo_{user_id}_{strategy.get('id', 'manual')}"
+    
+    try:
+        await lock_col.delete_one({"_id": lock_key, "timestamp": {"$lt": now - timedelta(seconds=15)}})
+        await lock_col.insert_one({"_id": lock_key, "timestamp": now})
+    except Exception:
+        return {"status": "error", "message": "Execution already processing. Multi-click blocked."}
 
     try:
         index = strategy.get("index", "NIFTY")
@@ -256,6 +266,10 @@ async def core_algotwo_execution(user_id: str, mode: str, strategy: dict, recove
     except Exception as fatal_e:
         error_details = traceback.format_exc().splitlines()
         return {"status": "error", "message": f"Bug: {' | '.join(error_details[-2:])}"}
+    
+    finally:
+        try: await lock_col.delete_one({"_id": lock_key})
+        except: pass
 
 
 @router.post("/execute-now")
@@ -306,9 +320,9 @@ async def algotwo_recovery_monitor():
                     except: pass
 
                 for t in active_trades:
-                    # SAFETY GRACE PERIOD: 15 seconds after trade execution to allow Kotak to update positions
+                    # 🚀 SAFETY GRACE PERIOD: Increased to 60 seconds 🚀
                     trade_time = datetime.strptime(t["entry_time"], "%Y-%m-%d %H:%M:%S")
-                    if (datetime.now(IST).replace(tzinfo=None) - trade_time).total_seconds() < 15:
+                    if (datetime.now(IST).replace(tzinfo=None) - trade_time).total_seconds() < 60:
                         continue 
 
                     ce_leg = next((l for l in t["legs"] if l["type"] == "CE"), None)
